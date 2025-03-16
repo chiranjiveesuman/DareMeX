@@ -8,8 +8,8 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 // Create a single supabase client for interacting with your database
 export const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL!,
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       storage: AsyncStorage,
