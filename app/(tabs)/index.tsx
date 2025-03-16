@@ -1,131 +1,137 @@
-import { View, Text, StyleSheet, Pressable, StatusBar } from 'react-native';
+import { View, Text, Pressable, ScrollView, useColorScheme } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { Users, Lock, Sparkles } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Users, Lock, Sparkles, Bell } from 'lucide-react-native';
+import { globalStyles, colors, gradientColors, useThemeStyles } from '@/styles/globalStyles';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
-  
-  return (
-    <>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <LinearGradient
-        colors={['#FF4D6A', '#FF8C94']}
-        style={styles.container}>
-        <View style={[styles.content, { paddingTop: insets.top || 48 }]}>
-          <View style={styles.header}>
-            <Text style={styles.title}>DareMeX</Text>
-            <Text style={styles.subtitle}>Dare to be different</Text>
-          </View>
-
-          <View style={styles.categories}>
-            <AnimatedPressable
-              entering={FadeInDown.delay(200)}
-              style={styles.categoryCard}>
-              <View style={styles.iconContainer}>
-                <Users size={24} color="#FF4D6A" />
-              </View>
-              <View style={styles.categoryTextContainer}>
-                <Text style={styles.categoryTitle}>Public Dares</Text>
-                <Text style={styles.categoryDescription}>
-                  Join community challenges and show your daring side
-                </Text>
-              </View>
-            </AnimatedPressable>
-
-            <AnimatedPressable
-              entering={FadeInDown.delay(300)}
-              style={styles.categoryCard}>
-              <View style={styles.iconContainer}>
-                <Lock size={24} color="#FF4D6A" />
-              </View>
-              <View style={styles.categoryTextContainer}>
-                <Text style={styles.categoryTitle}>Private Dares</Text>
-                <Text style={styles.categoryDescription}>
-                  Create exclusive challenges for your friends
-                </Text>
-              </View>
-            </AnimatedPressable>
-
-            <AnimatedPressable
-              entering={FadeInDown.delay(400)}
-              style={styles.categoryCard}>
-              <View style={styles.iconContainer}>
-                <Sparkles size={24} color="#FF4D6A" />
-              </View>
-              <View style={styles.categoryTextContainer}>
-                <Text style={styles.categoryTitle}>AI Dares</Text>
-                <Text style={styles.categoryDescription}>
-                  Get personalized dare suggestions powered by AI
-                </Text>
-              </View>
-            </AnimatedPressable>
-          </View>
-        </View>
-      </LinearGradient>
-    </>
-  );
+interface DareCategory {
+  id: string;
+  title: string;
+  description: string;
+  icon: any;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+const CATEGORIES: DareCategory[] = [
+  {
+    id: 'public',
+    title: 'Public Dares',
+    description: 'Join community challenges and show your daring side',
+    icon: Users,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
+  {
+    id: 'private',
+    title: 'Private Dares',
+    description: 'Create exclusive challenges for your friends',
+    icon: Lock,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 32,
+  {
+    id: 'ai',
+    title: 'AI Dares',
+    description: 'Get personalized dare suggestions powered by AI',
+    icon: Sparkles,
   },
-  title: {
-    fontFamily: 'SpaceGrotesk-Bold',
-    fontSize: 32,
-    color: '#FFFFFF',
-    marginBottom: 4,
+];
+
+interface RecentDare {
+  id: string;
+  title: string;
+  creator: string;
+  participants: number;
+}
+
+const RECENT_DARES: RecentDare[] = [
+  {
+    id: '1',
+    title: 'Ice Bucket Challenge',
+    creator: 'CosmicWolf365',
+    participants: 128,
   },
-  subtitle: {
-    fontFamily: 'SpaceGrotesk-Regular',
-    fontSize: 16,
-    color: '#FFFFFF',
-    opacity: 0.9,
+  {
+    id: '2',
+    title: 'Lip Sync Battle',
+    creator: 'MysticDragon789',
+    participants: 64,
   },
-  categories: {
-    gap: 16,
+  {
+    id: '3',
+    title: 'Blindfolded Makeup',
+    creator: 'NobleEagle123',
+    participants: 96,
   },
-  categoryCard: {
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  categoryTextContainer: {
-    flex: 1,
-  },
-  categoryTitle: {
-    fontFamily: 'SpaceGrotesk-Bold',
-    fontSize: 18,
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  categoryDescription: {
-    fontFamily: 'SpaceGrotesk-Regular',
-    fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.8,
-  },
-});
+];
+
+export default function HomeScreen() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const styles = useThemeStyles();
+  
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <LinearGradient
+        colors={[gradientColors.header.start, gradientColors.header.end]}
+        style={styles.headerGradient}>
+        <Text style={styles.headerTitle}>DareMeX</Text>
+        <Text style={styles.headerSubtitle}>Dare to be different</Text>
+      </LinearGradient>
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+        {/* Categories */}
+        <View style={{ marginBottom: 24 }}>
+          <Text style={[styles.title, { marginBottom: 16 }]}>Dare Categories</Text>
+          <View style={{ gap: 12 }}>
+            {CATEGORIES.map((category, index) => (
+              <AnimatedPressable
+                key={category.id}
+                entering={FadeInDown.delay(100 + index * 100)}
+                style={styles.card}>
+                <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                  <View style={styles.iconContainer}>
+                    <category.icon size={20} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{category.title}</Text>
+                    <Text style={styles.cardContent}>{category.description}</Text>
+                  </View>
+                </View>
+              </AnimatedPressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Recent Activity */}
+        <View>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.title}>Recent Activity</Text>
+            <Pressable style={styles.iconContainer}>
+              <Bell size={20} color={isDark ? colors.text.primary.dark : colors.text.primary.light} />
+            </Pressable>
+          </View>
+
+          <View style={{ gap: 16 }}>
+            {RECENT_DARES.map((dare, index) => (
+              <AnimatedPressable
+                key={dare.id}
+                entering={FadeInDown.delay(200 + index * 100)}
+                style={styles.card}>
+                <View style={{ padding: 16, gap: 12 }}>
+                  <Text style={styles.cardTitle}>{dare.title}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={[styles.text, { color: colors.primary }]}>
+                      {dare.participants} participants
+                    </Text>
+                    <Text style={[styles.text, { color: isDark ? colors.text.secondary.dark : colors.text.secondary.light }]}>
+                      by {dare.creator}
+                    </Text>
+                  </View>
+                </View>
+              </AnimatedPressable>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}

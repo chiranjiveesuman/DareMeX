@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/supabase/config';
-import { Session, User, AuthError } from '@supabase/supabase-js';
+import { Session, User } from '@supabase/supabase-js';
+import { generateUniqueUsername } from '@/utils/nameGenerator';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Define user type
 type UserData = {
@@ -17,7 +18,7 @@ type AuthContextType = {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string) => Promise<void>;
+  signUp: (email: string, password: string, username?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -238,8 +239,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Sign up function
-  const signUp = async (email: string, password: string, username: string) => {
+  const signUp = async (email: string, password: string, providedUsername?: string) => {
     try {
+      setLoading(true);
+
+      // Generate a unique username if not provided
+      const username = providedUsername || await generateUniqueUsername(supabase);
+
+      // Sign up the user
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -265,6 +272,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('Error signing up:', error?.message || JSON.stringify(error));
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 

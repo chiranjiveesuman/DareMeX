@@ -203,12 +203,19 @@ export const createStyles = (isDark: boolean) => StyleSheet.create({
     marginBottom: spacing.xs,
   },
   input: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.fontSize.md,
+    color: isDark ? colors.text.primary.dark : colors.text.primary.light,
     backgroundColor: isDark ? colors.background.input.dark : colors.background.input.light,
     borderRadius: borderRadius.md,
     padding: spacing.md,
-    color: isDark ? colors.text.primary.dark : colors.text.primary.light,
+    width: '100%',
+  },
+  errorText: {
     fontFamily: typography.fontFamily.regular,
-    fontSize: typography.fontSize.md,
+    fontSize: typography.fontSize.sm,
+    color: colors.primary,
+    marginBottom: spacing.md,
   },
   
   // Buttons
@@ -218,28 +225,35 @@ export const createStyles = (isDark: boolean) => StyleSheet.create({
     padding: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: spacing.md,
+    marginBottom: spacing.md,
   },
   buttonText: {
-    color: colors.white,
-    fontFamily: typography.fontFamily.medium,
+    fontFamily: typography.fontFamily.bold,
     fontSize: typography.fontSize.md,
+    color: colors.white,
+  },
+  buttonOutline: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: 'transparent',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  buttonOutlineText: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.fontSize.md,
+    color: colors.primary,
   },
   
   // Links
   link: {
-    color: colors.primary,
     fontFamily: typography.fontFamily.medium,
-    fontSize: typography.fontSize.sm,
-  },
-  
-  // Errors
-  errorText: {
+    fontSize: typography.fontSize.md,
     color: colors.primary,
-    fontFamily: typography.fontFamily.medium,
-    fontSize: typography.fontSize.sm,
-    marginBottom: spacing.md,
-    textAlign: 'center',
+    marginLeft: spacing.xs,
   },
   
   // Footer
@@ -250,24 +264,49 @@ export const createStyles = (isDark: boolean) => StyleSheet.create({
     marginTop: spacing.md,
   },
   footerText: {
-    color: isDark ? colors.text.secondary.dark : colors.text.secondary.light,
     fontFamily: typography.fontFamily.regular,
-    fontSize: typography.fontSize.sm,
-    marginRight: spacing.xs,
+    fontSize: typography.fontSize.md,
+    color: isDark ? colors.text.secondary.dark : colors.text.secondary.light,
+  },
+  
+  // Tabs
+  tabBar: {
+    backgroundColor: isDark ? colors.background.card.dark : colors.background.card.light,
+    borderTopWidth: 0,
+    elevation: 0,
+    height: 60,
+    paddingBottom: spacing.xs,
+  },
+  tabBarLabel: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.fontSize.xs,
+  },
+  
+  // Icon containers
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.round,
+    backgroundColor: isDark ? colors.background.iconContainer.dark : colors.background.iconContainer.light,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   
   // Cards
   card: {
     backgroundColor: isDark ? colors.background.card.dark : colors.background.card.light,
     borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
+    overflow: 'hidden',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardTitle: {
     fontFamily: typography.fontFamily.bold,
     fontSize: typography.fontSize.lg,
     color: isDark ? colors.text.primary.dark : colors.text.primary.light,
-    marginBottom: spacing.sm,
   },
   cardContent: {
     fontFamily: typography.fontFamily.regular,
@@ -275,35 +314,108 @@ export const createStyles = (isDark: boolean) => StyleSheet.create({
     color: isDark ? colors.text.secondary.dark : colors.text.secondary.light,
   },
   
-  // Icons
-  iconContainer: {
-    backgroundColor: isDark ? colors.background.iconContainer.dark : colors.background.iconContainer.light,
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.round,
-    justifyContent: 'center',
+  // Lists
+  listItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  
-  // Dividers
-  divider: {
-    height: 1,
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-    marginVertical: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
   },
   
   // Badges
   badge: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.round,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs / 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary + '20',
     alignSelf: 'flex-start',
   },
   badgeText: {
-    color: colors.white,
     fontFamily: typography.fontFamily.medium,
     fontSize: typography.fontSize.xs,
+    color: colors.primary,
+  },
+  
+  // Categories
+  categoryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: isDark ? colors.background.card.dark : colors.background.card.light,
+    borderRadius: borderRadius.lg,
+  },
+  
+  // Media Cards
+  mediaCard: {
+    flex: 1,
+    padding: spacing.md,
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: isDark ? colors.background.card.dark : colors.background.card.light,
+    borderRadius: borderRadius.lg,
+  },
+  
+  // Horizontal Lists
+  horizontalList: {
+    marginHorizontal: -spacing.lg,
+  },
+  horizontalListContent: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  
+  // Section Headers
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  
+  // Discover Page
+  discoverPage: {
+    flex: 1,
+    backgroundColor: isDark ? colors.background.dark : colors.background.light,
+  },
+  discoverHeader: {
+    height: height * 0.25, // Top 1/4th of the page
+    width: '100%',
+    backgroundColor: colors.background.header.dark,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: spacing.xl,
+  },
+  discoverTitle: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.fontSize.xl,
+    color: colors.text.header.dark,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  discoverSubtitle: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.fontSize.md,
+    color: colors.text.header.dark,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  discoverCard: {
+    backgroundColor: isDark ? colors.background.card.dark : colors.background.card.light,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  discoverCardContent: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.fontSize.md,
+    color: isDark ? colors.text.secondary.dark : colors.text.secondary.light,
   },
 });
 

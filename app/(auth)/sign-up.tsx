@@ -8,7 +8,6 @@ import { globalStyles, colors, gradientColors, useThemeStyles } from '@/styles/g
 export default function SignUpScreen() {
   const router = useRouter();
   const { signUp } = useAuth();
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,10 +20,6 @@ export default function SignUpScreen() {
   const styles = useThemeStyles();
 
   const validateForm = () => {
-    if (!username.trim()) {
-      setError('Username is required');
-      return false;
-    }
     if (!email.trim()) {
       setError('Email is required');
       return false;
@@ -50,7 +45,7 @@ export default function SignUpScreen() {
       if (!validateForm()) return;
 
       setLoading(true);
-      await signUp(email, password, username);
+      await signUp(email, password);
       
       // Show success message and navigate
       setSuccess(true);
@@ -92,7 +87,7 @@ export default function SignUpScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header (top 1/4th of the screen) */}
+      {/* Header */}
       <LinearGradient
         colors={[gradientColors.header.start, gradientColors.header.end]}
         style={styles.headerGradient}>
@@ -114,18 +109,6 @@ export default function SignUpScreen() {
             {success && <Text style={[styles.errorText, { color: colors.success }]}>Account created successfully!</Text>}
 
             <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Username</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your username"
-                  placeholderTextColor={isDark ? colors.text.secondary.dark : colors.text.secondary.light}
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
-                />
-              </View>
-
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Email</Text>
                 <TextInput
