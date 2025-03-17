@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, Pressable, useColorScheme } from 'react-native';
-import { Bell, Compass, TrendingUp, Sparkles, Flame } from 'lucide-react-native';
+import { Bell, Compass, TrendingUp, Sparkles, Flame, Star, MessageSquare, Zap, Lock } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { globalStyles, colors, gradientColors, useThemeStyles } from '@/styles/globalStyles';
@@ -23,28 +23,28 @@ interface Category {
 
 const CATEGORIES: Category[] = [
   {
-    id: 'trending',
-    title: 'Trending',
-    icon: TrendingUp,
+    id: 'popular',
+    title: 'Popular Dares',
+    icon: Star,
     color: '#FF4D6A',
   },
   {
-    id: 'new',
-    title: 'New',
-    icon: Sparkles,
+    id: 'embarrassing',
+    title: 'Embarrassing Stories',
+    icon: MessageSquare,
     color: '#F59E0B',
   },
   {
-    id: 'hot',
-    title: 'Hot',
-    icon: Flame,
+    id: 'wild',
+    title: 'Wild/Freaky Tales',
+    icon: Zap,
     color: '#EF4444',
   },
   {
-    id: 'explore',
-    title: 'Explore',
-    icon: Compass,
-    color: '#22C55E',
+    id: 'nsfw',
+    title: 'NSFW Dump',
+    icon: Lock,
+    color: '#9333EA',
   },
 ];
 

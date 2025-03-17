@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as Localization from 'expo-localization';
 import { I18n } from 'i18n-js';
-import * as Storage from 'expo-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface LanguageContextType {
   locale: string;
@@ -49,7 +49,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const loadLocale = async () => {
     try {
-      const savedLocale = await Storage.getItem({ key: '@locale' });
+      const savedLocale = await AsyncStorage.getItem('@locale');
       if (savedLocale) {
         setLocaleState(savedLocale);
       }
@@ -62,10 +62,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     setLocaleState(newLocale);
     i18n.locale = newLocale;
     try {
-      await Storage.setItem({
-        key: '@locale',
-        value: newLocale,
-      });
+      await AsyncStorage.setItem('@locale', newLocale);
     } catch (error) {
       console.error('Error saving locale:', error);
     }

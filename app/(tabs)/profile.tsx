@@ -1,5 +1,5 @@
-import { View, Text, Image, Pressable, ScrollView, useColorScheme } from 'react-native';
-import { Settings, Lock, Bell, CircleHelp as HelpCircle, LogOut, Award } from 'lucide-react-native';
+import { View, Text, Pressable, ScrollView, useColorScheme, Image } from 'react-native';
+import { Settings, Bell, CircleHelp as HelpCircle, LogOut, Award, Mail, User } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -10,15 +10,9 @@ import { useEffect } from 'react';
 const MENU_ITEMS = [
   {
     icon: Settings,
-    title: 'Settings',
-    description: 'App preferences and account settings',
+    title: 'Settings & Privacy',
+    description: 'Account settings, privacy and security',
     route: '/settings' as const,
-  },
-  {
-    icon: Lock,
-    title: 'Privacy',
-    description: 'Manage your privacy and security',
-    route: '/privacy' as const,
   },
   {
     icon: Bell,
@@ -49,6 +43,13 @@ const STATS = [
     value: 384,
   },
 ];
+
+// Function to get a random anime avatar
+const getAnimeAvatar = (userId: string) => {
+  // Using a seed based on user ID to maintain consistency
+  const seed = userId ? parseInt(userId.substring(0, 8), 16) % 100 : Math.floor(Math.random() * 100);
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+};
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -97,7 +98,7 @@ export default function ProfileScreen() {
           <View style={{ padding: 16, alignItems: 'center', gap: 12 }}>
             <Image
               source={{
-                uri: user?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&auto=format&fit=crop',
+                uri: getAnimeAvatar(user.id),
               }}
               style={{ 
                 width: 80, 
@@ -108,10 +109,29 @@ export default function ProfileScreen() {
               }}
             />
             <View style={{ alignItems: 'center' }}>
-              <Text style={styles.cardTitle}>{user?.username || 'SwiftPhoenix42'}</Text>
+              <Text style={styles.cardTitle}>{user.username}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Award size={16} color={colors.primary} />
                 <Text style={styles.cardContent}>Level 15 • 2,500 points</Text>
+              </View>
+            </View>
+
+            {/* User details */}
+            <View style={{
+              width: '100%',
+              marginTop: 8,
+              paddingTop: 16,
+              gap: 8,
+              borderTopWidth: 1,
+              borderTopColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Mail size={16} color={isDark ? colors.text.secondary.dark : colors.text.secondary.light} />
+                <Text style={styles.cardContent}>{user.email}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <User size={16} color={isDark ? colors.text.secondary.dark : colors.text.secondary.light} />
+                <Text style={styles.cardContent}>25, Male</Text>
               </View>
             </View>
 

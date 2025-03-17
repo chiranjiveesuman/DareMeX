@@ -1,8 +1,10 @@
-import { View, Text, Pressable, ScrollView, useColorScheme } from 'react-native';
+import { View, Text, Pressable, ScrollView, useColorScheme, TextInput, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { Users, Lock, Sparkles, Bell } from 'lucide-react-native';
+import { Users, Lock, Sparkles, Bell, Search, X, User, MessageSquare, Video } from 'lucide-react-native';
 import { globalStyles, colors, gradientColors, useThemeStyles } from '@/styles/globalStyles';
+import { useState } from 'react';
+import { useRouter } from 'expo-router';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -21,16 +23,22 @@ const CATEGORIES: DareCategory[] = [
     icon: Users,
   },
   {
-    id: 'private',
-    title: 'Private Dares',
-    description: 'Create exclusive challenges for your friends',
-    icon: Lock,
+    id: 'friends',
+    title: 'Friends Feed',
+    description: 'See what your friends are up to',
+    icon: User,
   },
   {
-    id: 'ai',
-    title: 'AI Dares',
-    description: 'Get personalized dare suggestions powered by AI',
-    icon: Sparkles,
+    id: 'messages',
+    title: 'Messages',
+    description: 'Chat with your friends and connections',
+    icon: MessageSquare,
+  },
+  {
+    id: 'video',
+    title: 'Video Feed',
+    description: 'View the latest trending videos',
+    icon: Video,
   },
 ];
 
@@ -66,6 +74,21 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const styles = useThemeStyles();
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  
+  const handleSearch = () => {
+    if (searchQuery.trim()) {
+      console.log('Searching for:', searchQuery);
+      // Here you would implement actual search functionality and navigation
+      // router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+  };
   
   return (
     <View style={styles.container}>
@@ -78,9 +101,49 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+        {/* Search Bar */}
+        <View style={[localStyles.searchContainer, { marginBottom: 24 }]}>
+          <View style={[
+            localStyles.searchInputContainer,
+            {
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+              borderColor: isSearchFocused ? colors.primary : 'transparent',
+            }
+          ]}>
+            <Search 
+              size={20} 
+              color={isDark ? colors.text.secondary.dark : colors.text.secondary.light} 
+              style={{ marginLeft: 12 }}
+            />
+            <TextInput
+              style={[
+                localStyles.searchInput,
+                { 
+                  color: isDark ? colors.text.primary.dark : colors.text.primary.light,
+                }
+              ]}
+              placeholder="Search for dares, friends, or topics"
+              placeholderTextColor={isDark ? colors.text.secondary.dark : colors.text.secondary.light}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+              onSubmitEditing={handleSearch}
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={clearSearch} style={{ marginRight: 12 }}>
+                <X 
+                  size={18} 
+                  color={isDark ? colors.text.secondary.dark : colors.text.secondary.light}
+                />
+              </Pressable>
+            )}
+          </View>
+        </View>
+
         {/* Categories */}
         <View style={{ marginBottom: 24 }}>
-          <Text style={[styles.title, { marginBottom: 16 }]}>Dare Categories</Text>
+          <Text style={[styles.title, { marginBottom: 16 }]}>Quick Navigation</Text>
           <View style={{ gap: 12 }}>
             {CATEGORIES.map((category, index) => (
               <AnimatedPressable
@@ -135,3 +198,21 @@ export default function HomeScreen() {
     </View>
   );
 }
+
+const localStyles = StyleSheet.create({
+  searchContainer: {
+    width: '100%',
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    height: 48,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    paddingHorizontal: 12,
+  },
+});
