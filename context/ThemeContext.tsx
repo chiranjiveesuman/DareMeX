@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme, Platform } from 'react-native';
-import * as Storage from 'expo-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -28,7 +28,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const loadTheme = async () => {
     try {
-      const savedTheme = await Storage.getItem({ key: '@theme' }) as Theme;
+      const savedTheme = await AsyncStorage.getItem('@theme') as Theme;
       if (savedTheme) {
         setThemeState(savedTheme);
       }
@@ -40,10 +40,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = async (newTheme: Theme) => {
     setThemeState(newTheme);
     try {
-      await Storage.setItem({
-        key: '@theme',
-        value: newTheme,
-      });
+      await AsyncStorage.setItem('@theme', newTheme);
     } catch (error) {
       console.error('Error saving theme:', error);
     }

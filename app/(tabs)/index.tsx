@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Users, Lock, Sparkles, Bell } from 'lucide-react-native';
 import { globalStyles, colors, gradientColors, useThemeStyles } from '@/styles/globalStyles';
+import { UserSearch } from '@/components/UserSearch';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -78,6 +79,9 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+        {/* Search Bar */}
+        <UserSearch />
+
         {/* Categories */}
         <View style={{ marginBottom: 24 }}>
           <Text style={[styles.title, { marginBottom: 16 }]}>Dare Categories</Text>

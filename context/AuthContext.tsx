@@ -20,6 +20,7 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, username?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  searchUsers: (query: string) => Promise<Array<{ id: string; username: string; avatar_url?: string }>>;
 };
 
 // Create the auth context with default values
@@ -30,6 +31,7 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
   signUp: async () => {},
   signOut: async () => {},
+  searchUsers: async () => [],
 });
 
 // Custom hook to use the auth context
@@ -113,16 +115,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('username, avatar_url')
         .eq('id', userId)
-        .single();
+        .limit(1);
 
       if (error) {
         console.warn('Error getting profile:', error.message);
         return null;
       }
-      return data;
+      return data?.[0] || null;
     } catch (error: any) {
       console.error('Error getting profile:', error?.message || JSON.stringify(error));
       return null;
+    }
+  };
+
+  // Function to search users
+  const searchUsers = async (query: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .ilike('username', `%${query}%`)
+        .limit(10);
+
+      if (error) {
+        console.error('Error searching users:', error.message);
+        return [];
+      }
+      return data || [];
+    } catch (error: any) {
+      console.error('Error searching users:', error?.message || JSON.stringify(error));
+      return [];
     }
   };
 
@@ -300,6 +322,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signOut,
+    searchUsers,
   };
 
   return (
