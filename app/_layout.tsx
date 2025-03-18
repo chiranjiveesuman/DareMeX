@@ -1,26 +1,30 @@
-import { useEffect } from 'react';
+import 'react-native-reanimated';
 import { Stack } from 'expo-router';
+import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { SpaceGrotesk_400Regular, SpaceGrotesk_600SemiBold, SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk';
-import { SplashScreen } from 'expo-router';
-import { ThemeProvider } from '@/context/ThemeContext';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { ChatProvider } from '@/context/ChatContext';
+import * as SplashScreen from 'expo-splash-screen';
+import {
+  useFonts,
+  SpaceGrotesk_700Bold as SpaceGroteskBold,
+  SpaceGrotesk_500Medium as SpaceGroteskMedium,
+} from '@expo-google-fonts/space-grotesk';
+import {
+  Inter_400Regular as InterRegular,
+  Inter_700Bold as InterBold,
+} from '@expo-google-fonts/inter';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  useFrameworkReady();
-
   const [fontsLoaded, fontError] = useFonts({
-    'Inter-Regular': Inter_400Regular,
-    'Inter-SemiBold': Inter_600SemiBold,
-    'Inter-Bold': Inter_700Bold,
-    'SpaceGrotesk-Regular': SpaceGrotesk_400Regular,
-    'SpaceGrotesk-SemiBold': SpaceGrotesk_600SemiBold,
-    'SpaceGrotesk-Bold': SpaceGrotesk_700Bold,
+    'SpaceGrotesk-Bold': SpaceGroteskBold,
+    'SpaceGrotesk-Medium': SpaceGroteskMedium,
+    'Inter-Regular': InterRegular,
+    'Inter-Bold': InterBold,
   });
 
   useEffect(() => {
@@ -34,17 +38,19 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <LanguageProvider>
         <AuthProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="(auth)" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="light" />
+          <ChatProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="(auth)" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+            <StatusBar style="light" />
+          </ChatProvider>
         </AuthProvider>
       </LanguageProvider>
-    </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

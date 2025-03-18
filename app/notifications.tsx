@@ -1,224 +1,463 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Pressable } from 'react-native';
-import { useTheme } from '@/context/ThemeContext';
-import { ChevronLeft, Bell, MessageSquare, Award, Heart } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, FlatList, StyleSheet, Image, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Check, X, UserPlus, MessageCircle, Bell } from 'lucide-react-native';
+import { supabase } from '@/supabase/config';
+import { useAuth } from '@/context/AuthContext';
+import { colors } from '@/styles/globalStyles';
 
-interface NotificationSetting {
+interface FriendRequestResponse {
   id: string;
-  title: string;
-  description: string;
-  enabled: boolean;
-  icon: React.ComponentType<any>;
+  sender_id: string;
+  receiver_id: string;
+  created_at: string;
+  sender: {
+    username: string;
+    avatar_url?: string;
+  };
+}
+
+interface Message {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  content: string;
+  created_at: string;
+  sender: {
+    username: string;
+    avatar_url?: string;
+  };
+}
+
+interface Notification {
+  id: string;
+  type: 'comment' | 'like' | 'dare';
+  user_id: string;
+  content: string;
+  created_at: string;
+  user: {
+    username: string;
+    avatar_url?: string;
+  };
 }
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { isDark } = useTheme();
-  
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSetting[]>([
-    {
-      id: 'challenges',
-      title: 'New Challenges',
-      description: 'Get notified about new challenges',
-      enabled: true,
-      icon: Bell
-    },
-    {
-      id: 'messages',
-      title: 'Messages',
-      description: 'Get notified when you receive a message',
-      enabled: true,
-      icon: MessageSquare
-    },
-    {
-      id: 'achievements',
-      title: 'Achievements',
-      description: 'Get notified when you earn an achievement',
-      enabled: true,
-      icon: Award
-    },
-    {
-      id: 'likes',
-      title: 'Likes & Comments',
-      description: 'Get notified when someone likes or comments on your content',
-      enabled: false,
-      icon: Heart
-    }
-  ]);
+  const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const [activeTab, setActiveTab] = useState<'notifications' | 'messages'>('notifications');
+  const [friendRequests, setFriendRequests] = useState<FriendRequestResponse[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const toggleNotification = (id: string) => {
-    setNotificationSettings(settings => 
-      settings.map(setting => 
-        setting.id === id 
-          ? { ...setting, enabled: !setting.enabled } 
-          : setting
-      )
-    );
+  useEffect(() => {
+    loadData();
+    const subscription = subscribeToUpdates();
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [activeTab]);
+
+  const loadData = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      
+      if (activeTab === 'notifications') {
+        // Load friend requests
+        const { data: requestData, error: requestError } = await supabase
+          .from('friends')
+          .select(`
+            id,
+            sender_id,
+            receiver_id,
+            created_at,
+            sender:profiles!friends_sender_id_fkey(
+              username,
+              avatar_url
+            )
+          `)
+          .eq('receiver_id', user.id)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .returns<FriendRequestResponse[]>();
+
+        if (requestError) throw requestError;
+        setFriendRequests(requestData || []);
+
+        // Load other notifications (comments, likes, dares)
+        const { data: notifData, error: notifError } = await supabase
+          .from('notifications')
+          .select(`
+            id,
+            type,
+            user_id,
+            content,
+            created_at,
+            user:profiles!notifications_user_id_fkey(
+              username,
+              avatar_url
+            )
+          `)
+          .eq('receiver_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (notifError) throw notifError;
+        setNotifications(notifData || []);
+      } else {
+        // Load messages
+        const { data: messageData, error: messageError } = await supabase
+          .from('messages')
+          .select(`
+            id,
+            sender_id,
+            receiver_id,
+            content,
+            created_at,
+            sender:profiles!messages_sender_id_fkey(
+              username,
+              avatar_url
+            )
+          `)
+          .eq('receiver_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (messageError) throw messageError;
+        setMessages(messageData || []);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
-  
-  return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#09090B' : '#F4F4F5' }]}>
-      <View style={[styles.header, { backgroundColor: isDark ? '#18181B' : '#FFFFFF' }]}>
+
+  const subscribeToUpdates = () => {
+    if (!user) return;
+
+    return supabase
+      .channel('notifications_messages')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: activeTab === 'notifications' ? 'notifications' : 'messages',
+        filter: `receiver_id=eq.${user.id}`,
+      }, () => {
+        loadData();
+      })
+      .subscribe();
+  };
+
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor(diff / (1000 * 60));
+
+    if (minutes < 60) {
+      return `${minutes}m ago`;
+    } else if (hours < 24) {
+      return `${hours}h ago`;
+    } else if (days === 1) {
+      return 'Yesterday';
+    } else if (days < 7) {
+      return `${days}d ago`;
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: isDark ? colors.background.dark : colors.background.light,
+    },
+    header: {
+      paddingHorizontal: 16,
+      paddingTop: 60,
+      paddingBottom: 16,
+      backgroundColor: isDark ? colors.background.card.dark : colors.background.card.light,
+    },
+    headerTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 32,
+      color: isDark ? colors.text.dark : colors.text.light,
+      marginBottom: 16,
+    },
+    tabs: {
+      flexDirection: 'row',
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    activeTab: {
+      borderBottomWidth: 2,
+      borderBottomColor: colors.primary,
+    },
+    tabText: {
+      fontFamily: 'SpaceGrotesk-Medium',
+      fontSize: 16,
+      color: isDark ? colors.text.dark : colors.text.light,
+    },
+    activeTabText: {
+      color: colors.primary,
+    },
+    centerContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 16,
+      gap: 8,
+    },
+    loadingText: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 16,
+      color: isDark ? colors.text.dark : colors.text.light,
+    },
+    emptyText: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 20,
+      color: isDark ? colors.text.dark : colors.text.light,
+      textAlign: 'center',
+      marginTop: 16,
+    },
+    emptySubtext: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 16,
+      color: isDark ? colors.subtext.dark : colors.subtext.light,
+      textAlign: 'center',
+    },
+    item: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 16,
+      backgroundColor: isDark ? colors.background.card.dark : colors.background.card.light,
+      marginHorizontal: 16,
+      marginVertical: 4,
+      borderRadius: 12,
+    },
+    avatar: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      borderWidth: 2,
+      borderColor: colors.primary,
+    },
+    content: {
+      flex: 1,
+      marginLeft: 12,
+    },
+    username: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 16,
+      color: isDark ? colors.text.dark : colors.text.light,
+    },
+    message: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 14,
+      color: isDark ? colors.subtext.dark : colors.subtext.light,
+      marginTop: 2,
+    },
+    time: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 12,
+      color: isDark ? colors.subtext.dark : colors.subtext.light,
+      marginTop: 2,
+    },
+    actions: {
+      flexDirection: 'row',
+      gap: 8,
+      marginLeft: 8,
+    },
+    actionButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    acceptButton: {
+      backgroundColor: colors.success,
+    },
+    declineButton: {
+      backgroundColor: colors.error,
+    },
+  });
+
+  const renderNotificationItem = ({ item }: { item: Notification | FriendRequestResponse }) => {
+    if ('sender' in item) {
+      // Friend request
+      return (
+        <View style={styles.item}>
+          <Pressable 
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => router.push(`/profile/${item.sender_id}`)}
+          >
+            <Image
+              source={{
+                uri: item.sender.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&auto=format&fit=crop',
+              }}
+              style={styles.avatar}
+            />
+            <View style={styles.content}>
+              <Text style={styles.username}>{item.sender.username}</Text>
+              <Text style={styles.message}>sent you a friend request</Text>
+              <Text style={styles.time}>{formatTime(item.created_at)}</Text>
+            </View>
+          </Pressable>
+          <View style={styles.actions}>
+            <Pressable
+              style={[styles.actionButton, styles.acceptButton]}
+              onPress={() => respondToRequest(item.id, true)}
+            >
+              <Check size={20} color="#FFFFFF" />
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, styles.declineButton]}
+              onPress={() => respondToRequest(item.id, false)}
+            >
+              <X size={20} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        </View>
+      );
+    } else {
+      // Regular notification
+      return (
         <Pressable 
-          style={styles.backButton} 
-          onPress={() => router.back()}
+          style={styles.item}
+          onPress={() => {
+            // Handle notification press based on type
+            if (item.type === 'dare') {
+              router.push(`/dare/${item.id}`);
+            } else {
+              router.push(`/profile/${item.user_id}`);
+            }
+          }}
         >
-          <ChevronLeft size={24} color={isDark ? '#FFFFFF' : '#000000'} />
+          <Image
+            source={{
+              uri: item.user.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&auto=format&fit=crop',
+            }}
+            style={styles.avatar}
+          />
+          <View style={styles.content}>
+            <Text style={styles.username}>{item.user.username}</Text>
+            <Text style={styles.message}>{item.content}</Text>
+            <Text style={styles.time}>{formatTime(item.created_at)}</Text>
+          </View>
         </Pressable>
-        <Text style={[styles.headerTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-          Notifications
-        </Text>
-        <View style={{ width: 24 }} />
+      );
+    }
+  };
+
+  const renderMessageItem = ({ item }: { item: Message }) => (
+    <Pressable 
+      style={styles.item}
+      onPress={() => router.push(`/chat/${item.sender_id}`)}
+    >
+      <Image
+        source={{
+          uri: item.sender.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&auto=format&fit=crop',
+        }}
+        style={styles.avatar}
+      />
+      <View style={styles.content}>
+        <Text style={styles.username}>{item.sender.username}</Text>
+        <Text style={styles.message} numberOfLines={2}>{item.content}</Text>
+        <Text style={styles.time}>{formatTime(item.created_at)}</Text>
+      </View>
+    </Pressable>
+  );
+
+  const respondToRequest = async (requestId: string, accept: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('friends')
+        .update({ status: accept ? 'accepted' : 'rejected' })
+        .eq('id', requestId);
+
+      if (error) throw error;
+      
+      // Remove the request from the list
+      setFriendRequests(current => 
+        current.filter(request => request.id !== requestId)
+      );
+    } catch (error) {
+      console.error('Error responding to friend request:', error);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Notifications</Text>
+        <View style={styles.tabs}>
+          <Pressable
+            style={[styles.tab, activeTab === 'notifications' && styles.activeTab]}
+            onPress={() => setActiveTab('notifications')}
+          >
+            <Text style={[styles.tabText, activeTab === 'notifications' && styles.activeTabText]}>
+              Notifications
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tab, activeTab === 'messages' && styles.activeTab]}
+            onPress={() => setActiveTab('messages')}
+          >
+            <Text style={[styles.tabText, activeTab === 'messages' && styles.activeTabText]}>
+              Messages
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-            Push Notifications
-          </Text>
-          
-          {notificationSettings.map(setting => (
-            <View 
-              key={setting.id}
-              style={[styles.settingItem, { backgroundColor: isDark ? '#18181B' : '#FFFFFF' }]}
-            >
-              <View style={styles.settingLabelContainer}>
-                <View style={styles.iconContainer}>
-                  <setting.icon size={20} color="#FF4D6A" />
-                </View>
-                <View>
-                  <Text style={[styles.settingLabel, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-                    {setting.title}
-                  </Text>
-                  <Text style={[styles.settingDescription, { color: isDark ? '#A1A1AA' : '#71717A' }]}>
-                    {setting.description}
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={setting.enabled}
-                onValueChange={() => toggleNotification(setting.id)}
-                trackColor={{ false: '#3e3e3e', true: '#FF4D6A' }}
-                thumbColor={'#f4f3f4'}
-              />
-            </View>
-          ))}
+      {loading ? (
+        <View style={styles.centerContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-            Email Notifications
-          </Text>
-          
-          <View style={[styles.settingItem, { backgroundColor: isDark ? '#18181B' : '#FFFFFF' }]}>
-            <Text style={[styles.settingLabel, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-              Email Notifications
+      ) : activeTab === 'notifications' ? (
+        friendRequests.length === 0 && notifications.length === 0 ? (
+          <View style={styles.centerContainer}>
+            <Bell size={48} color={isDark ? colors.subtext.dark : colors.subtext.light} />
+            <Text style={styles.emptyText}>No new notifications</Text>
+            <Text style={styles.emptySubtext}>
+              You'll see notifications about your dares and friend requests here
             </Text>
-            <Switch
-              value={false}
-              trackColor={{ false: '#3e3e3e', true: '#FF4D6A' }}
-              thumbColor={'#f4f3f4'}
-            />
           </View>
-          
-          <View style={[styles.settingItem, { backgroundColor: isDark ? '#18181B' : '#FFFFFF' }]}>
-            <Text style={[styles.settingLabel, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-              Marketing Emails
-            </Text>
-            <Switch
-              value={false}
-              trackColor={{ false: '#3e3e3e', true: '#FF4D6A' }}
-              thumbColor={'#f4f3f4'}
-            />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-            Notification Schedule
+        ) : (
+          <FlatList
+            data={[...friendRequests, ...notifications]}
+            renderItem={renderNotificationItem}
+            keyExtractor={item => item.id}
+            contentContainerStyle={{ paddingVertical: 8 }}
+          />
+        )
+      ) : messages.length === 0 ? (
+        <View style={styles.centerContainer}>
+          <MessageCircle size={48} color={isDark ? colors.subtext.dark : colors.subtext.light} />
+          <Text style={styles.emptyText}>No messages yet</Text>
+          <Text style={styles.emptySubtext}>
+            Start a conversation with your friends
           </Text>
-          
-          <Pressable style={[styles.settingItem, { backgroundColor: isDark ? '#18181B' : '#FFFFFF' }]}>
-            <Text style={[styles.settingLabel, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-              Do Not Disturb
-            </Text>
-          </Pressable>
-          
-          <Pressable style={[styles.settingItem, { backgroundColor: isDark ? '#18181B' : '#FFFFFF' }]}>
-            <Text style={[styles.settingLabel, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-              Schedule Quiet Hours
-            </Text>
-          </Pressable>
         </View>
-      </ScrollView>
+      ) : (
+        <FlatList
+          data={messages}
+          renderItem={renderMessageItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={{ paddingVertical: 8 }}
+        />
+      )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontFamily: 'SpaceGrotesk-Bold',
-    fontSize: 20,
-  },
-  scrollView: {
-    flex: 1,
-    padding: 16,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontFamily: 'SpaceGrotesk-Bold',
-    fontSize: 18,
-    marginBottom: 12,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  settingLabelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#27272A',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  settingLabel: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 16,
-  },
-  settingDescription: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-  },
-});

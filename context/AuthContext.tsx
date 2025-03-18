@@ -3,6 +3,7 @@ import { supabase } from '@/supabase/config';
 import { Session, User } from '@supabase/supabase-js';
 import { generateUniqueUsername } from '@/utils/nameGenerator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 
 // Define user type
 type UserData = {
@@ -65,49 +66,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Update profile function to store username in Supabase
-  const updateProfile = async (userId: string, username: string) => {
-    try {
-      // Check if the profiles table exists by attempting to query it
-      const { error: tableCheckError } = await supabase
-        .from('profiles')
-        .select('count')
-        .limit(1);
-
-      // If there's an error, it might be because the table doesn't exist
-      if (tableCheckError) {
-        console.warn('Profiles table may not exist yet:', tableCheckError.message);
-        // Store the profile data locally even if we can't save it to Supabase
-        const userData: UserData = {
-          id: userId,
-          email: '', // We'll update this later when we have the email
-          username: username,
-        };
-        await storeUserData(userData);
-        return;
-      }
-
-      // If the table exists, proceed with the upsert
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({ 
-          id: userId, 
-          username: username,
-          updated_at: new Date().toISOString() 
-        }, { 
-          onConflict: 'id' 
-        });
-
-      if (error) {
-        console.error('Error in profile upsert:', error.message);
-        throw error;
-      }
-    } catch (error: any) {
-      console.error('Error updating profile:', error?.message || JSON.stringify(error));
-      // Don't throw the error, just log it to prevent app crashes
-    }
-  };
-
   // Function to get profile data from Supabase
   const getProfile = async (userId: string) => {
     try {
@@ -125,6 +83,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('Error getting profile:', error?.message || JSON.stringify(error));
       return null;
+    }
+  };
+
+  // Update profile function to store username in Supabase
+  const updateProfile = async (userId: string, username: string) => {
+    try {
+      // First check if the username is already taken by another user
+      const { data: existingUser, error: checkError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', username)
+        .neq('id', userId)
+        .limit(1);
+
+      if (checkError) {
+        console.error('Error checking username:', checkError.message);
+        throw checkError;
+      }
+
+      if (existingUser && existingUser.length > 0) {
+        // Username is taken by another user, generate a new one
+        const newUsername = await generateUniqueUsername(supabase);
+        return updateProfile(userId, newUsername);
+      }
+
+      // If the table exists, proceed with the upsert
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ 
+          id: userId, 
+          username: username,
+          updated_at: new Date().toISOString() 
+        }, { 
+          onConflict: 'id' 
+        });
+
+      if (error) {
+        console.error('Error in profile upsert:', error.message);
+        throw error;
+      }
+
+      return username;
+    } catch (error: any) {
+      console.error('Error updating profile:', error?.message || JSON.stringify(error));
+      // Generate a new username and try again
+      const newUsername = await generateUniqueUsername(supabase);
+      return updateProfile(userId, newUsername);
     }
   };
 
@@ -148,6 +153,92 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Sign up function
+  const signUp = async (email: string, password: string, providedUsername?: string) => {
+    try {
+      setLoading(true);
+
+      // Generate a unique username if not provided
+      let username = providedUsername;
+      if (!username) {
+        username = await generateUniqueUsername(supabase);
+      } else {
+        // Check if provided username is taken
+        const isTaken = await isUsernameTaken(username, supabase);
+        if (isTaken) {
+          username = await generateUniqueUsername(supabase);
+        }
+      }
+
+      // Sign up the user
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Create a profile for the new user
+        const finalUsername = await updateProfile(data.user.id, username);
+        
+        // Create user data object
+        const userData: UserData = {
+          id: data.user.id,
+          email: data.user.email || '',
+          username: finalUsername,
+          avatar: undefined,
+        };
+        
+        setUser(userData);
+        await storeUserData(userData);
+      }
+    } catch (error: any) {
+      console.error('Error signing up:', error?.message || JSON.stringify(error));
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Sign in function
+  const signIn = async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      // Get user profile from Supabase
+      if (data.user) {
+        let profile = await getProfile(data.user.id);
+        let username = profile?.username;
+
+        // Only generate a new username if one doesn't exist
+        if (!username) {
+          username = await generateUniqueUsername(supabase);
+          await updateProfile(data.user.id, username);
+        }
+        
+        // Create user data object
+        const userData: UserData = {
+          id: data.user.id,
+          email: data.user.email || '',
+          username: username,
+          avatar: profile?.avatar_url,
+        };
+        
+        setUser(userData);
+        await storeUserData(userData);
+      }
+    } catch (error: any) {
+      console.error('Error signing in:', error?.message || JSON.stringify(error));
+      throw error;
+    }
+  };
+
   // Effect to set up auth state listener
   useEffect(() => {
     // Check if we have a session
@@ -166,13 +257,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(session);
           
           // Get user profile from Supabase
-          const profile = await getProfile(session.user.id);
+          let profile = await getProfile(session.user.id);
+          let username = profile?.username;
+
+          // Only generate a new username if one doesn't exist
+          if (!username) {
+            username = await generateUniqueUsername(supabase);
+            await updateProfile(session.user.id, username);
+          }
           
           // Create user data object
           const userData: UserData = {
             id: session.user.id,
             email: session.user.email || '',
-            username: profile?.username || session.user.email?.split('@')[0] || '',
+            username: username,
             avatar: profile?.avatar_url,
           };
           
@@ -202,13 +300,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         if (event === 'SIGNED_IN' && session) {
           // Get user profile from Supabase
-          const profile = await getProfile(session.user.id);
+          let profile = await getProfile(session.user.id);
+          let username = profile?.username;
+
+          // Only generate a new username if one doesn't exist
+          if (!username) {
+            username = await generateUniqueUsername(supabase);
+            await updateProfile(session.user.id, username);
+          }
           
           // Create user data object
           const userData: UserData = {
             id: session.user.id,
             email: session.user.email || '',
-            username: profile?.username || session.user.email?.split('@')[0] || '',
+            username: username,
             avatar: profile?.avatar_url,
           };
           
@@ -229,88 +334,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Sign in function
-  const signIn = async (email: string, password: string) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      // Get user profile from Supabase
-      if (data.user) {
-        const profile = await getProfile(data.user.id);
-        
-        // Create user data object
-        const userData: UserData = {
-          id: data.user.id,
-          email: data.user.email || '',
-          username: profile?.username || data.user.email?.split('@')[0] || '',
-          avatar: profile?.avatar_url,
-        };
-        
-        setUser(userData);
-        await storeUserData(userData);
-      }
-    } catch (error: any) {
-      console.error('Error signing in:', error?.message || JSON.stringify(error));
-      throw error;
-    }
-  };
-
-  // Sign up function
-  const signUp = async (email: string, password: string, providedUsername?: string) => {
-    try {
-      setLoading(true);
-
-      // Generate a unique username if not provided
-      const username = providedUsername || await generateUniqueUsername(supabase);
-
-      // Sign up the user
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        // Create a profile for the new user
-        await updateProfile(data.user.id, username);
-        
-        // Create user data object
-        const userData: UserData = {
-          id: data.user.id,
-          email: data.user.email || '',
-          username: username,
-          avatar: undefined,
-        };
-        
-        setUser(userData);
-        await storeUserData(userData);
-      }
-    } catch (error: any) {
-      console.error('Error signing up:', error?.message || JSON.stringify(error));
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Sign out function
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
+
+      // Clear any local state
       setUser(null);
       setSession(null);
       await AsyncStorage.removeItem('userData');
-    } catch (error: any) {
-      console.error('Error signing out:', error?.message || JSON.stringify(error));
-      throw error;
+      
+      // Use router.replace for navigation
+      router.replace('/sign-in');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      // Still try to redirect even if there's an error
+      router.replace('/sign-in');
     }
   };
 

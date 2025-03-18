@@ -2,6 +2,7 @@ import { View, Text, Pressable, ScrollView, useColorScheme } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Users, Lock, Sparkles, Bell } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { globalStyles, colors, gradientColors, useThemeStyles } from '@/styles/globalStyles';
 import { UserSearch } from '@/components/UserSearch';
 
@@ -67,13 +68,22 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const styles = useThemeStyles();
+  const router = useRouter();
   
   return (
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient
         colors={[gradientColors.header.start, gradientColors.header.end]}
-        style={styles.headerGradient}>
+        style={[styles.headerGradient, { position: 'relative' }]}>
+        <View style={{ position: 'absolute', top: 16, right: 16 }}>
+          <Pressable 
+            style={[styles.iconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
+            onPress={() => router.push('/notifications')}
+          >
+            <Bell size={20} color="#FFFFFF" />
+          </Pressable>
+        </View>
         <Text style={styles.headerTitle}>DareMeX</Text>
         <Text style={styles.headerSubtitle}>Dare to be different</Text>
       </LinearGradient>
@@ -107,13 +117,7 @@ export default function HomeScreen() {
 
         {/* Recent Activity */}
         <View>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.title}>Recent Activity</Text>
-            <Pressable style={styles.iconContainer}>
-              <Bell size={20} color={isDark ? colors.text.primary.dark : colors.text.primary.light} />
-            </Pressable>
-          </View>
-
+          <Text style={[styles.title, { marginBottom: 16 }]}>Recent Activity</Text>
           <View style={{ gap: 16 }}>
             {RECENT_DARES.map((dare, index) => (
               <AnimatedPressable

@@ -1,5 +1,5 @@
 import { View, Text, Image, Pressable, ScrollView, useColorScheme } from 'react-native';
-import { Settings, Lock, Bell, CircleHelp as HelpCircle, LogOut, Award } from 'lucide-react-native';
+import { Settings, Bell, CircleHelp as HelpCircle, LogOut, Award } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -8,18 +8,6 @@ import { globalStyles, colors, gradientColors, useThemeStyles } from '@/styles/g
 import { useEffect } from 'react';
 
 const MENU_ITEMS = [
-  {
-    icon: Settings,
-    title: 'Settings',
-    description: 'App preferences and account settings',
-    route: '/settings' as const,
-  },
-  {
-    icon: Lock,
-    title: 'Privacy',
-    description: 'Manage your privacy and security',
-    route: '/privacy' as const,
-  },
   {
     icon: Bell,
     title: 'Notifications',
@@ -36,13 +24,13 @@ const MENU_ITEMS = [
 
 const STATS = [
   {
-    label: 'Dares Completed',
+    label: 'Dares',
+    sublabel: 'Completed',
     value: 42,
   },
   {
     label: 'Followers',
-    value: 1.2,
-    suffix: 'K',
+    value: '1.2K',
   },
   {
     label: 'Following',
@@ -107,8 +95,8 @@ export default function ProfileScreen() {
                 borderColor: colors.primary,
               }}
             />
-            <View style={{ alignItems: 'center' }}>
-              <Text style={styles.cardTitle}>{user?.username || 'SwiftPhoenix42'}</Text>
+            <View style={{ alignItems: 'center', gap: 4 }}>
+              <Text style={styles.cardTitle}>{user?.username}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Award size={16} color={colors.primary} />
                 <Text style={styles.cardContent}>Level 15 • 2,500 points</Text>
@@ -127,10 +115,17 @@ export default function ProfileScreen() {
             }}>
               {STATS.map((stat, index) => (
                 <View key={stat.label} style={{ alignItems: 'center' }}>
-                  <Text style={[styles.cardTitle, { fontSize: 18 }]}>
-                    {stat.value}{stat.suffix || ''}
+                  <Text style={[styles.cardTitle, { fontSize: 20, color: colors.primary }]}>
+                    {stat.value}
                   </Text>
-                  <Text style={styles.cardContent}>{stat.label}</Text>
+                  <Text style={[styles.cardContent, { fontSize: 14, opacity: 0.8 }]}>
+                    {stat.label}
+                  </Text>
+                  {stat.sublabel && (
+                    <Text style={[styles.cardContent, { fontSize: 12, opacity: 0.6 }]}>
+                      {stat.sublabel}
+                    </Text>
+                  )}
                 </View>
               ))}
             </View>
@@ -141,10 +136,25 @@ export default function ProfileScreen() {
         <View style={{ marginTop: 24, gap: 12 }}>
           <Text style={[styles.title, { marginBottom: 8 }]}>Settings</Text>
           
+          <AnimatedPressable
+            entering={FadeInDown.delay(200)}
+            style={styles.card}
+            onPress={() => router.push('/settings')}>
+            <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+              <View style={styles.iconContainer}>
+                <Settings size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>Settings & Privacy</Text>
+                <Text style={styles.cardContent}>Manage your account settings and privacy preferences</Text>
+              </View>
+            </View>
+          </AnimatedPressable>
+          
           {MENU_ITEMS.map((item, index) => (
             <AnimatedPressable
               key={item.title}
-              entering={FadeInDown.delay(200 + index * 100)}
+              entering={FadeInDown.delay(300 + index * 100)}
               style={styles.card}
               onPress={() => handleMenuItemPress(item.route)}>
               <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 }}>

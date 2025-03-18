@@ -7,16 +7,16 @@ const { width, height } = Dimensions.get('window');
 // Colors
 export const colors = {
   // Primary colors
-  primary: '#FF4D6A',
+  primary: '#6366F1',
   primaryLight: '#FF8C94',
   
   // Background colors
   background: {
-    dark: '#09090B',
-    light: '#F5F5F7',
+    dark: '#111827',
+    light: '#FFFFFF',
     card: {
-      dark: '#18181B',
-      light: '#FFFFFF'
+      dark: '#1F2937',
+      light: '#F3F4F6'
     },
     input: {
       dark: 'rgba(0, 0, 0, 0.2)',
@@ -35,30 +35,36 @@ export const colors = {
   // Text colors
   text: {
     primary: {
-      dark: '#FFFFFF',
-      light: '#18181B'
+      dark: '#F9FAFB',
+      light: '#111827'
     },
     secondary: {
       dark: '#71717A',
       light: '#71717A'
     },
     error: {
-      dark: '#FFFFFF',
-      light: '#FFFFFF'
+      dark: '#EF4444',
+      light: '#EF4444'
     },
     header: {
       dark: '#FFFFFF',
       light: '#FFFFFF'
-    }
+    },
+    light: '#111827',
+    dark: '#F9FAFB',
   },
   
   // Utility colors
   transparent: 'transparent',
   white: '#FFFFFF',
   black: '#000000',
-  error: 'rgba(255, 0, 0, 0.2)',
+  error: '#EF4444',
   overlay: 'rgba(0, 0, 0, 0.2)',
-  success: '#4CAF50',
+  success: '#22C55E',
+  subtext: {
+    light: '#6B7280',
+    dark: '#9CA3AF'
+  },
 };
 
 // Typography
@@ -107,9 +113,13 @@ export const gradientColors = {
     end: '#FF8C94',
   },
   header: {
+    start: '#4F46E5',
+    end: '#6366F1'
+  },
+  header: {
     start: '#FF4D6A',
-    end: '#FF8C94',
-  }
+    end: '#FF8C9C',
+  },
 };
 
 // Helper function to get color based on theme

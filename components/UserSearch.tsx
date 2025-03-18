@@ -1,95 +1,155 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, TextInput, FlatList, Image, Pressable, useColorScheme } from 'react-native';
-import { Search } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, Pressable, FlatList, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/context/AuthContext';
-import { globalStyles, colors, useThemeStyles } from '@/styles/globalStyles';
-import debounce from 'lodash/debounce';
+import { Search } from 'lucide-react-native';
+import { supabase } from '@/supabase/config';
+import { colors } from '@/styles/globalStyles';
+import { useDebounce } from '@/hooks/useDebounce';
+
+interface User {
+  id: string;
+  username: string;
+  avatar_url?: string;
+}
 
 export function UserSearch() {
   const router = useRouter();
-  const { searchUsers } = useAuth();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const styles = useThemeStyles();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Array<{ id: string; username: string; avatar_url?: string }>>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
-  const debouncedSearch = useCallback(
-    debounce(async (query: string) => {
-      if (query.length < 2) {
-        setSearchResults([]);
-        return;
-      }
-      setIsSearching(true);
-      const results = await searchUsers(query);
-      setSearchResults(results);
-      setIsSearching(false);
-    }, 300),
-    []
-  );
+  useEffect(() => {
+    if (debouncedSearch) {
+      searchUsers();
+    } else {
+      setUsers([]);
+    }
+  }, [debouncedSearch]);
 
-  const handleSearchChange = (text: string) => {
-    setSearchQuery(text);
-    debouncedSearch(text);
+  const searchUsers = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .ilike('username', `%${debouncedSearch}%`)
+        .limit(10);
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error searching users:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUserPress = (userId: string) => {
-    router.push(`/profile/${userId}`);
-  };
-
-  const renderSearchResult = ({ item }: { item: { id: string; username: string; avatar_url?: string } }) => (
+  const renderUserItem = ({ item }: { item: User }) => (
     <Pressable
-      style={[styles.card, { marginBottom: 8 }]}
-      onPress={() => handleUserPress(item.id)}>
-      <View style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Image
-          source={{
-            uri: item.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&auto=format&fit=crop',
-          }}
-          style={{ width: 40, height: 40, borderRadius: 20 }}
-        />
-        <Text style={styles.cardTitle}>{item.username}</Text>
-      </View>
+      style={styles.userItem}
+      onPress={() => router.push(`/profile/${item.id}`)}
+    >
+      <Image
+        source={{
+          uri: item.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&auto=format&fit=crop',
+        }}
+        style={styles.avatar}
+      />
+      <Text style={styles.username}>{item.username}</Text>
     </Pressable>
   );
 
   return (
-    <View style={{ marginBottom: 24 }}>
-      <View style={[styles.card, { padding: 8 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Search size={20} color={isDark ? colors.text.secondary.dark : colors.text.secondary.light} />
-          <TextInput
-            style={[
-              styles.text,
-              { flex: 1, color: isDark ? colors.text.primary.dark : colors.text.primary.light },
-            ]}
-            placeholder="Search users..."
-            placeholderTextColor={isDark ? colors.text.secondary.dark : colors.text.secondary.light}
-            value={searchQuery}
-            onChangeText={handleSearchChange}
-          />
-        </View>
+    <View style={styles.container}>
+      <View style={styles.searchContainer}>
+        <Search size={20} color={colors.subtext.dark} style={styles.searchIcon} />
+        <TextInput
+          style={styles.input}
+          placeholder="Search users..."
+          placeholderTextColor={colors.subtext.dark}
+          value={searchTerm}
+          onChangeText={setSearchTerm}
+        />
       </View>
 
-      {/* Search Results */}
-      {searchQuery.length > 0 && (
-        <View style={{ marginTop: 8 }}>
-          {isSearching ? (
-            <Text style={styles.cardContent}>Searching...</Text>
-          ) : searchResults.length > 0 ? (
-            <FlatList
-              data={searchResults}
-              renderItem={renderSearchResult}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-            />
+      {searchTerm.length > 0 && (
+        <View style={styles.resultsContainer}>
+          {loading ? (
+            <Text style={styles.statusText}>Searching...</Text>
+          ) : users.length === 0 ? (
+            <Text style={styles.statusText}>No users found</Text>
           ) : (
-            <Text style={styles.cardContent}>No users found</Text>
+            <FlatList
+              data={users}
+              renderItem={renderUserItem}
+              keyExtractor={item => item.id}
+              contentContainerStyle={styles.resultsList}
+            />
           )}
         </View>
       )}
     </View>
   );
-} 
+}
+
+const styles = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.card.dark,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 48,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    height: '100%',
+    color: colors.text.dark,
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+  },
+  resultsContainer: {
+    backgroundColor: colors.background.card.dark,
+    borderRadius: 12,
+    marginTop: 8,
+    maxHeight: 300,
+    overflow: 'hidden',
+  },
+  resultsList: {
+    padding: 8,
+  },
+  userItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  username: {
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 16,
+    color: colors.text.dark,
+  },
+  statusText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+    color: colors.subtext.dark,
+    textAlign: 'center',
+    padding: 16,
+  },
+}); 
