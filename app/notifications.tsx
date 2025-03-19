@@ -23,6 +23,9 @@ interface Message {
   receiver_id: string;
   content: string;
   created_at: string;
+  read: boolean;
+  type?: 'text' | 'image' | 'video' | 'file';
+  status?: 'sent' | 'delivered' | 'read';
   sender: {
     username: string;
     avatar_url?: string;
@@ -58,7 +61,7 @@ export default function NotificationsScreen() {
     return () => {
       subscriptions.forEach(subscription => subscription?.unsubscribe());
     };
-  }, [activeTab]);
+  }, [activeTab, user?.id]);
 
   const loadData = async () => {
     if (!user) return;
@@ -67,67 +70,100 @@ export default function NotificationsScreen() {
       setLoading(true);
       
       if (activeTab === 'notifications') {
-        // Load friend requests with profile info
+        // Load friend requests - use separate query for profiles
         const { data: requestData, error: requestError } = await supabase
           .from('friends')
-          .select(`
-            id,
-            sender_id,
-            receiver_id,
-            created_at,
-            status,
-            sender:profiles!fk_sender_profile(
-              username,
-              avatar_url
-            )
-          `)
+          .select('*')
           .eq('receiver_id', user.id)
           .eq('status', 'pending')
           .order('created_at', { ascending: false });
 
         if (requestError) throw requestError;
-        setFriendRequests(requestData || []);
+        
+        // Get sender profiles for friend requests
+        if (requestData && requestData.length > 0) {
+          const senderIds = requestData.map(request => request.sender_id);
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, username, avatar_url')
+            .in('id', senderIds);
+          
+          // Combine data
+          const requestsWithProfiles = requestData.map(request => {
+            const sender = profiles?.find(p => p.id === request.sender_id);
+            return {
+              ...request,
+              sender: sender ? { username: sender.username, avatar_url: sender.avatar_url } : undefined
+            };
+          });
+          
+          setFriendRequests(requestsWithProfiles);
+        } else {
+          setFriendRequests([]);
+        }
 
-        // Load other notifications
+        // Load other notifications - use separate query for profiles
         const { data: notifData, error: notifError } = await supabase
           .from('notifications')
-          .select(`
-            id,
-            type,
-            user_id,
-            content,
-            created_at,
-            user:profiles!fk_notifications_user(
-              username,
-              avatar_url
-            )
-          `)
+          .select('*')
           .eq('receiver_id', user.id)
           .order('created_at', { ascending: false });
 
         if (notifError) throw notifError;
-        setNotifications(notifData || []);
+        
+        // Get user profiles for notifications
+        if (notifData && notifData.length > 0) {
+          const userIds = notifData.map(notif => notif.user_id);
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, username, avatar_url')
+            .in('id', userIds);
+          
+          // Combine data
+          const notificationsWithProfiles = notifData.map(notif => {
+            const user = profiles?.find(p => p.id === notif.user_id);
+            return {
+              ...notif,
+              user: user ? { username: user.username, avatar_url: user.avatar_url } : undefined
+            };
+          });
+          
+          setNotifications(notificationsWithProfiles);
+        } else {
+          setNotifications([]);
+        }
       } else {
-        // Load messages with sender profile info
+        // Load messages - use separate query for sender profiles
         const { data: messageData, error: messageError } = await supabase
           .from('messages')
-          .select(`
-            id,
-            sender_id,
-            receiver_id,
-            content,
-            created_at,
-            read,
-            sender:profiles!fk_messages_sender(
-              username,
-              avatar_url
-            )
-          `)
+          .select('*')
           .eq('receiver_id', user.id)
+          .eq('read', false)
           .order('created_at', { ascending: false });
 
         if (messageError) throw messageError;
-        setMessages(messageData || []);
+        
+        // Get sender profiles
+        if (messageData && messageData.length > 0) {
+          const senderIds = messageData.map(msg => msg.sender_id);
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, username, avatar_url')
+            .in('id', senderIds);
+          
+          // Combine data
+          const messagesWithProfiles = messageData.map(msg => {
+            const sender = profiles?.find(p => p.id === msg.sender_id);
+            return {
+              ...msg,
+              sender: sender ? { username: sender.username, avatar_url: sender.avatar_url } : undefined
+            };
+          });
+          
+          setMessages(messagesWithProfiles);
+        } else {
+          setMessages([]);
+        }
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -151,25 +187,33 @@ export default function NotificationsScreen() {
         filter: `receiver_id=eq.${user.id}`,
       }, async (payload) => {
         if (payload.eventType === 'INSERT') {
-          const { data, error } = await supabase
-            .rpc('get_chat_messages', { p_user_id: user.id })
-            .eq('message_id', payload.new.id)
+          // Get the message
+          const { data: message, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('id', payload.new.id)
             .single();
 
-          if (!error && data) {
-            const formattedMessage = {
-              id: data.message_id,
-              content: data.content,
-              sender_id: data.sender_id,
-              receiver_id: data.receiver_id,
-              created_at: data.created_at,
-              read: data.read,
-              sender: {
-                username: data.sender_username,
-                avatar_url: data.sender_avatar
-              }
+          if (!error && message) {
+            // Get sender profile
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('username, avatar_url')
+              .eq('id', message.sender_id)
+              .single();
+            
+            const messageWithProfile = {
+              ...message,
+              sender: profile ? { 
+                username: profile.username, 
+                avatar_url: profile.avatar_url 
+              } : undefined
             };
-            setMessages(prev => [formattedMessage, ...prev]);
+            
+            // Add to messages list only if we're in messages tab
+            if (activeTab === 'messages') {
+              setMessages(prev => [messageWithProfile, ...prev]);
+            }
           }
         }
       })
@@ -177,7 +221,7 @@ export default function NotificationsScreen() {
 
     subscriptions.push(messageSubscription);
 
-    // Subscribe to notifications
+    // Rest of the subscription handlers remain the same
     const notificationSubscription = supabase
       .channel('notifications')
       .on('postgres_changes', {
@@ -186,13 +230,14 @@ export default function NotificationsScreen() {
         table: 'notifications',
         filter: `receiver_id=eq.${user.id}`,
       }, () => {
-        loadData();
+        if (activeTab === 'notifications') {
+          loadData();
+        }
       })
       .subscribe();
 
     subscriptions.push(notificationSubscription);
 
-    // Subscribe to friend requests
     const friendRequestSubscription = supabase
       .channel('friend_requests')
       .on('postgres_changes', {
@@ -201,7 +246,9 @@ export default function NotificationsScreen() {
         table: 'friends',
         filter: `receiver_id=eq.${user.id}`,
       }, () => {
-        loadData();
+        if (activeTab === 'notifications') {
+          loadData();
+        }
       })
       .subscribe();
 
@@ -419,24 +466,36 @@ export default function NotificationsScreen() {
     }
   };
 
-  const renderMessageItem = ({ item }: { item: Message }) => (
-    <Pressable 
-      style={styles.item}
-      onPress={() => router.push(`/chat/${item.sender_id}`)}
-    >
-      <Image
-        source={{
-          uri: item.sender.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&auto=format&fit=crop',
-        }}
-        style={styles.avatar}
-      />
-      <View style={styles.content}>
-        <Text style={styles.username}>{item.sender.username}</Text>
-        <Text style={styles.message} numberOfLines={2}>{item.content}</Text>
-        <Text style={styles.time}>{formatTime(item.created_at)}</Text>
-          </View>
-    </Pressable>
-  );
+  const renderMessageItem = ({ item }: { item: Message }) => {
+    // Determine message preview based on type, defaulting to text
+    let messagePreview = item.content;
+    if (item.type === 'image') {
+      messagePreview = '📷 Image';
+    } else if (item.type === 'video') {
+      messagePreview = '🎥 Video';
+    } else if (item.type === 'file') {
+      messagePreview = '📎 File';
+    }
+    
+    return (
+      <Pressable 
+        style={styles.item}
+        onPress={() => router.push(`/chat/${item.sender_id}`)}
+      >
+        <Image
+          source={{
+            uri: item.sender.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&auto=format&fit=crop',
+          }}
+          style={styles.avatar}
+        />
+        <View style={styles.content}>
+          <Text style={styles.username}>{item.sender.username}</Text>
+          <Text style={styles.message} numberOfLines={2}>{messagePreview}</Text>
+          <Text style={styles.time}>{formatTime(item.created_at)}</Text>
+        </View>
+      </Pressable>
+    );
+  };
 
   const respondToRequest = async (requestId: string, accept: boolean) => {
     try {
@@ -485,7 +544,7 @@ export default function NotificationsScreen() {
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
       ) : (
-        <View style={{ flex: 1 }}>
+        <>
           {activeTab === 'notifications' ? (
             friendRequests.length === 0 && notifications.length === 0 ? (
               <View style={styles.centerContainer}>
@@ -502,8 +561,9 @@ export default function NotificationsScreen() {
                 keyExtractor={item => item.id}
                 contentContainerStyle={{ paddingVertical: 8 }}
                 removeClippedSubviews={true}
-                maxToRenderPerBatch={10}
-                windowSize={10}
+                initialNumToRender={10}
+                maxToRenderPerBatch={5}
+                windowSize={5}
               />
             )
           ) : messages.length === 0 ? (
@@ -521,11 +581,12 @@ export default function NotificationsScreen() {
               keyExtractor={item => item.id}
               contentContainerStyle={{ paddingVertical: 8 }}
               removeClippedSubviews={true}
-              maxToRenderPerBatch={10}
-              windowSize={10}
+              initialNumToRender={10}
+              maxToRenderPerBatch={5}
+              windowSize={5}
             />
           )}
-        </View>
+        </>
       )}
     </View>
   );
