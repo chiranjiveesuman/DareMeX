@@ -23,25 +23,16 @@ module.exports = async function (env, argv) {
   config.module.rules.push({
     test: /\.tsx?$/,
     include: /node_modules\/expo-router/,
-    use: [
-      {
-        loader: 'babel-loader',
-        options: {
-          presets: ['babel-preset-expo'],
-          plugins: [
-            ['@babel/plugin-proposal-decorators', { legacy: true }],
-            '@babel/plugin-proposal-class-properties',
-          ],
-        },
+    use: {
+      loader: 'babel-loader',
+      options: {
+        presets: ['babel-preset-expo'],
+        plugins: [
+          ['@babel/plugin-proposal-decorators', { legacy: true }],
+          '@babel/plugin-proposal-class-properties',
+        ],
       },
-      {
-        loader: 'string-replace-loader',
-        options: {
-          search: 'require.context',
-          replace: 'require.context || ((dir) => ({ keys: () => [], resolve: () => null, id: "", }))',
-        },
-      },
-    ],
+    },
   });
 
   // Add fallback for require.context

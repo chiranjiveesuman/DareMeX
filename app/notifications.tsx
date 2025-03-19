@@ -54,9 +54,9 @@ export default function NotificationsScreen() {
 
   useEffect(() => {
     loadData();
-    const subscription = subscribeToUpdates();
+    const subscriptions = subscribeToUpdates();
     return () => {
-      subscription?.unsubscribe();
+      subscriptions.forEach(subscription => subscription?.unsubscribe());
     };
   }, [activeTab]);
 
@@ -67,7 +67,7 @@ export default function NotificationsScreen() {
       setLoading(true);
       
       if (activeTab === 'notifications') {
-        // Load friend requests
+        // Load friend requests with profile info
         const { data: requestData, error: requestError } = await supabase
           .from('friends')
           .select(`
@@ -75,20 +75,20 @@ export default function NotificationsScreen() {
             sender_id,
             receiver_id,
             created_at,
-            sender:profiles!friends_sender_id_fkey(
+            status,
+            sender:profiles!fk_sender_profile(
               username,
               avatar_url
             )
           `)
           .eq('receiver_id', user.id)
           .eq('status', 'pending')
-          .order('created_at', { ascending: false })
-          .returns<FriendRequestResponse[]>();
+          .order('created_at', { ascending: false });
 
         if (requestError) throw requestError;
         setFriendRequests(requestData || []);
 
-        // Load other notifications (comments, likes, dares)
+        // Load other notifications
         const { data: notifData, error: notifError } = await supabase
           .from('notifications')
           .select(`
@@ -97,7 +97,7 @@ export default function NotificationsScreen() {
             user_id,
             content,
             created_at,
-            user:profiles!notifications_user_id_fkey(
+            user:profiles!fk_notifications_user(
               username,
               avatar_url
             )
@@ -108,7 +108,7 @@ export default function NotificationsScreen() {
         if (notifError) throw notifError;
         setNotifications(notifData || []);
       } else {
-        // Load messages
+        // Load messages with sender profile info
         const { data: messageData, error: messageError } = await supabase
           .from('messages')
           .select(`
@@ -117,7 +117,8 @@ export default function NotificationsScreen() {
             receiver_id,
             content,
             created_at,
-            sender:profiles!messages_sender_id_fkey(
+            read,
+            sender:profiles!fk_messages_sender(
               username,
               avatar_url
             )
@@ -136,19 +137,77 @@ export default function NotificationsScreen() {
   };
 
   const subscribeToUpdates = () => {
-    if (!user) return;
+    if (!user) return [];
 
-    return supabase
-      .channel('notifications_messages')
+    const subscriptions = [];
+
+    // Subscribe to messages
+    const messageSubscription = supabase
+      .channel('messages')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: activeTab === 'notifications' ? 'notifications' : 'messages',
+        table: 'messages',
+        filter: `receiver_id=eq.${user.id}`,
+      }, async (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const { data, error } = await supabase
+            .rpc('get_chat_messages', { p_user_id: user.id })
+            .eq('message_id', payload.new.id)
+            .single();
+
+          if (!error && data) {
+            const formattedMessage = {
+              id: data.message_id,
+              content: data.content,
+              sender_id: data.sender_id,
+              receiver_id: data.receiver_id,
+              created_at: data.created_at,
+              read: data.read,
+              sender: {
+                username: data.sender_username,
+                avatar_url: data.sender_avatar
+              }
+            };
+            setMessages(prev => [formattedMessage, ...prev]);
+          }
+        }
+      })
+      .subscribe();
+
+    subscriptions.push(messageSubscription);
+
+    // Subscribe to notifications
+    const notificationSubscription = supabase
+      .channel('notifications')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
         filter: `receiver_id=eq.${user.id}`,
       }, () => {
         loadData();
       })
       .subscribe();
+
+    subscriptions.push(notificationSubscription);
+
+    // Subscribe to friend requests
+    const friendRequestSubscription = supabase
+      .channel('friend_requests')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'friends',
+        filter: `receiver_id=eq.${user.id}`,
+      }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    subscriptions.push(friendRequestSubscription);
+
+    return subscriptions;
   };
 
   const formatTime = (timestamp: string) => {
@@ -296,7 +355,7 @@ export default function NotificationsScreen() {
   const renderNotificationItem = ({ item }: { item: Notification | FriendRequestResponse }) => {
     if ('sender' in item) {
       // Friend request
-      return (
+  return (
         <View style={styles.item}>
           <Pressable 
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
@@ -315,19 +374,19 @@ export default function NotificationsScreen() {
             </View>
           </Pressable>
           <View style={styles.actions}>
-            <Pressable
+        <Pressable 
               style={[styles.actionButton, styles.acceptButton]}
               onPress={() => respondToRequest(item.id, true)}
-            >
+        >
               <Check size={20} color="#FFFFFF" />
-            </Pressable>
+        </Pressable>
             <Pressable
               style={[styles.actionButton, styles.declineButton]}
               onPress={() => respondToRequest(item.id, false)}
             >
               <X size={20} color="#FFFFFF" />
             </Pressable>
-          </View>
+            </View>
         </View>
       );
     } else {
@@ -375,7 +434,7 @@ export default function NotificationsScreen() {
         <Text style={styles.username}>{item.sender.username}</Text>
         <Text style={styles.message} numberOfLines={2}>{item.content}</Text>
         <Text style={styles.time}>{formatTime(item.created_at)}</Text>
-      </View>
+          </View>
     </Pressable>
   );
 
@@ -425,38 +484,48 @@ export default function NotificationsScreen() {
         <View style={styles.centerContainer}>
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
-      ) : activeTab === 'notifications' ? (
-        friendRequests.length === 0 && notifications.length === 0 ? (
-          <View style={styles.centerContainer}>
-            <Bell size={48} color={isDark ? colors.subtext.dark : colors.subtext.light} />
-            <Text style={styles.emptyText}>No new notifications</Text>
-            <Text style={styles.emptySubtext}>
-              You'll see notifications about your dares and friend requests here
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={[...friendRequests, ...notifications]}
-            renderItem={renderNotificationItem}
-            keyExtractor={item => item.id}
-            contentContainerStyle={{ paddingVertical: 8 }}
-          />
-        )
-      ) : messages.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <MessageCircle size={48} color={isDark ? colors.subtext.dark : colors.subtext.light} />
-          <Text style={styles.emptyText}>No messages yet</Text>
-          <Text style={styles.emptySubtext}>
-            Start a conversation with your friends
-          </Text>
-        </View>
       ) : (
-        <FlatList
-          data={messages}
-          renderItem={renderMessageItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={{ paddingVertical: 8 }}
-        />
+        <View style={{ flex: 1 }}>
+          {activeTab === 'notifications' ? (
+            friendRequests.length === 0 && notifications.length === 0 ? (
+              <View style={styles.centerContainer}>
+                <Bell size={48} color={isDark ? colors.subtext.dark : colors.subtext.light} />
+                <Text style={styles.emptyText}>No new notifications</Text>
+                <Text style={styles.emptySubtext}>
+                  You'll see notifications about your dares and friend requests here
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={[...friendRequests, ...notifications]}
+                renderItem={renderNotificationItem}
+                keyExtractor={item => item.id}
+                contentContainerStyle={{ paddingVertical: 8 }}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+              />
+            )
+          ) : messages.length === 0 ? (
+            <View style={styles.centerContainer}>
+              <MessageCircle size={48} color={isDark ? colors.subtext.dark : colors.subtext.light} />
+              <Text style={styles.emptyText}>No messages yet</Text>
+              <Text style={styles.emptySubtext}>
+                Start a conversation with your friends
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={messages}
+              renderItem={renderMessageItem}
+              keyExtractor={item => item.id}
+              contentContainerStyle={{ paddingVertical: 8 }}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              windowSize={10}
+            />
+          )}
+        </View>
       )}
     </View>
   );

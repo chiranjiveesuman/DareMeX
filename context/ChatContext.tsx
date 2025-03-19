@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/supabase/config';
 import { useAuth } from './AuthContext';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface Message {
   id: string;
@@ -25,31 +26,67 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const activeUserIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  const cleanupSubscription = useCallback(() => {
+    if (channelRef.current) {
+      console.log('Cleaning up subscription');
+      channelRef.current.unsubscribe();
+      channelRef.current = null;
+    }
+  }, []);
+
+  const setupMessageSubscription = useCallback(() => {
     if (!user) return;
 
-    // Subscribe to new messages
-    const subscription = supabase
-      .channel('messages')
+    // Don't create a new subscription if we already have one
+    if (channelRef.current) return;
+
+    console.log('Setting up new subscription');
+    const channel = supabase.channel('chat')
       .on('postgres_changes', {
-        event: '*',
+        event: 'INSERT',
         schema: 'public',
         table: 'messages',
         filter: `receiver_id=eq.${user.id}`,
-      }, () => {
-        loadUnreadCount();
+      }, async (payload) => {
+        console.log('New message received:', payload);
+        if (payload.new) {
+          setMessages(prev => [...prev, payload.new as Message]);
+          loadUnreadCount();
+        }
       })
-      .subscribe();
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${user.id}`,
+      }, (payload) => {
+        console.log('Message updated:', payload);
+        if (payload.new) {
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === payload.new.id ? { ...msg, ...payload.new } : msg
+            )
+          );
+        }
+      });
 
-    loadUnreadCount();
+    channel.subscribe((status) => {
+      console.log(`Subscription status: ${status}`);
+    });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    channelRef.current = channel;
   }, [user]);
 
-  const loadUnreadCount = async () => {
+  // Set up subscription when user changes
+  useEffect(() => {
+    setupMessageSubscription();
+    return () => cleanupSubscription();
+  }, [user, setupMessageSubscription, cleanupSubscription]);
+
+  const loadUnreadCount = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -64,12 +101,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error loading unread count:', error);
     }
-  };
+  }, [user]);
 
-  const loadMessages = async (userId: string) => {
+  const loadMessages = useCallback(async (userId: string) => {
     if (!user) return;
 
     try {
+      activeUserIdRef.current = userId;
+
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -90,31 +129,34 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error loading messages:', error);
     }
-  };
+  }, [user, markAsRead]);
 
-  const sendMessage = async (receiverId: string, content: string) => {
+  const sendMessage = useCallback(async (receiverId: string, content: string) => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
+      const { data: insertedMessage, error: insertError } = await supabase
         .from('messages')
         .insert({
           sender_id: user.id,
           receiver_id: receiverId,
           content,
           read: false,
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
-      // Reload messages to get the new one
-      await loadMessages(receiverId);
+      if (insertedMessage) {
+        setMessages(prev => [...prev, insertedMessage]);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
     }
-  };
+  }, [user]);
 
-  const markAsRead = async (messageIds: string[]) => {
+  const markAsRead = useCallback(async (messageIds: string[]) => {
     if (!user || messageIds.length === 0) return;
 
     try {
@@ -128,7 +170,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error marking messages as read:', error);
     }
-  };
+  }, [user, loadUnreadCount]);
 
   return (
     <ChatContext.Provider value={{ messages, sendMessage, loadMessages, unreadCount, markAsRead }}>

@@ -38,9 +38,9 @@ export default function ChatScreen() {
 
   useEffect(() => {
     loadChatData();
-    const subscription = subscribeToMessages();
+    
     return () => {
-      subscription?.unsubscribe();
+      // No need to clean up since we're not creating a subscription
     };
   }, [id]);
 
@@ -66,22 +66,6 @@ export default function ChatScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const subscribeToMessages = () => {
-    if (!id || !user) return;
-
-    return supabase
-      .channel('chat_messages')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'messages',
-        filter: `or(and(sender_id.eq.${user.id},receiver_id.eq.${id}),and(sender_id.eq.${id},receiver_id.eq.${user.id}))`,
-      }, () => {
-        loadMessages(id as string);
-      })
-      .subscribe();
   };
 
   const handleSend = async () => {

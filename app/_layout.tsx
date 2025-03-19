@@ -1,7 +1,8 @@
-import 'react-native-reanimated';
-import { Stack } from 'expo-router';
+import 'react-native-gesture-handler';
 import { useEffect } from 'react';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { ChatProvider } from '@/context/ChatContext';
@@ -15,8 +16,8 @@ import {
   Inter_400Regular as InterRegular,
   Inter_700Bold as InterBold,
 } from '@expo-google-fonts/inter';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+// Prevent auto-hiding of splash screen
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
