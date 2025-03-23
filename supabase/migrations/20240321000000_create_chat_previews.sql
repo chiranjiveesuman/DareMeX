@@ -48,4 +48,5 @@ BEGIN
   LEFT JOIN unread_counts uc ON uc.sender_id = lm.chat_user_id
   ORDER BY lm.last_message_time DESC;
 END;
-$$ LANGUAGE plpgsql; 
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public; 

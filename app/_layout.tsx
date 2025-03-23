@@ -16,6 +16,8 @@ import {
   Inter_400Regular as InterRegular,
   Inter_700Bold as InterBold,
 } from '@expo-google-fonts/inter';
+import { ThemeProvider } from '@/context/ThemeContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Prevent auto-hiding of splash screen
 SplashScreen.preventAutoHideAsync();
@@ -39,11 +41,16 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <LanguageProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
         <AuthProvider>
           <ChatProvider>
-            <Stack screenOptions={{ headerShown: false }}>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            >
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="(auth)" options={{ presentation: 'modal' }} />
               <Stack.Screen name="+not-found" />
@@ -51,7 +58,7 @@ export default function RootLayout() {
             <StatusBar style="light" />
           </ChatProvider>
         </AuthProvider>
-      </LanguageProvider>
-    </GestureHandlerRootView>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

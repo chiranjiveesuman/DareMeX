@@ -1,10 +1,11 @@
-import { View, Text, ScrollView, Pressable, useColorScheme } from 'react-native';
-import { Bell, Compass, TrendingUp, Sparkles, Flame } from 'lucide-react-native';
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { Compass, TrendingUp, Sparkles, Flame } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { globalStyles, colors, gradientColors, useThemeStyles } from '@/styles/globalStyles';
+import { useTheme } from '@/context/ThemeContext';
+import SafeAreaWrapper from '@/components/SafeAreaWrapper';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
 
@@ -17,7 +18,7 @@ const DIFFICULTY_COLORS: Record<DifficultyLevel, string> = {
 interface Category {
   id: string;
   title: string;
-  icon: any; // Using any for Lucide icon component type
+  icon: any;
   color: string;
 }
 
@@ -95,86 +96,165 @@ const POPULAR_DARES: Dare[] = [
 ];
 
 export default function DiscoverScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const styles = useThemeStyles();
+  const { colors, isDark } = useTheme();
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors?.background?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#111827' : '#FFFFFF'),
+    },
+    header: {
+      padding: 16,
+      backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#1F2937' : '#F3F4F6'),
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#374151' : '#E5E7EB',
+    },
+    headerTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 32,
+      color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
+      marginBottom: 4,
+    },
+    headerSubtitle: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 16,
+      color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#9CA3AF' : '#6B7280'),
+    },
+    content: {
+      padding: 16,
+      paddingBottom: 32,
+    },
+    sectionTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 20,
+      color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
+      marginBottom: 16,
+    },
+    categoriesContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginBottom: 24,
+    },
+    categoryCard: {
+      flex: 1,
+      minWidth: '45%',
+      backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#1F2937' : '#F3F4F6'),
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: isDark ? '#374151' : '#E5E7EB',
+    },
+    categoryTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 16,
+      color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
+      marginTop: 8,
+    },
+    dareCard: {
+      backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#1F2937' : '#F3F4F6'),
+      borderRadius: 12,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: isDark ? '#374151' : '#E5E7EB',
+    },
+    dareContent: {
+      padding: 16,
+      gap: 12,
+    },
+    dareTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 18,
+      color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
+    },
+    dareDescription: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 14,
+      color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#9CA3AF' : '#6B7280'),
+    },
+    dareFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 12,
+    },
+    participants: {
+      fontFamily: 'Inter-Medium',
+      fontSize: 14,
+      color: colors?.primary ?? '#000000',
+    },
+    creator: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 14,
+      color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#9CA3AF' : '#6B7280'),
+    },
+    difficultyBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      alignSelf: 'flex-start',
+    },
+    difficultyText: {
+      fontFamily: 'Inter-Medium',
+      fontSize: 12,
+      color: '#FFFFFF',
+    },
+  });
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient
-        colors={[gradientColors.header.start, gradientColors.header.end]}
-        style={styles.headerGradient}>
-        <Text style={styles.headerTitle}>Discover</Text>
-        <Text style={styles.headerSubtitle}>Find your next adventure</Text>
-      </LinearGradient>
-
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
-        {/* Categories */}
-        <View style={{ marginBottom: 24 }}>
-          <Text style={[styles.title, { marginBottom: 16 }]}>Categories</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }}>
-            <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 12 }}>
-              {CATEGORIES.map((category, index) => (
-                <AnimatedPressable
-                  key={category.id}
-                  entering={FadeInDown.delay(100 + index * 100)}
-                  style={[styles.card, { paddingVertical: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
-                  <category.icon size={20} color={category.color} />
-                  <Text style={[styles.text, { color: category.color }]}>{category.title}</Text>
-                </AnimatedPressable>
-              ))}
-            </View>
-          </ScrollView>
+    <SafeAreaWrapper>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Discover</Text>
+          <Text style={styles.headerSubtitle}>Find your next challenge</Text>
         </View>
 
-        {/* Popular Dares */}
-        <View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <Text style={styles.title}>Popular Dares</Text>
-            <Pressable style={styles.iconContainer}>
-              <Bell size={20} color={isDark ? colors.text.primary.dark : colors.text.primary.light} />
-            </Pressable>
-          </View>
-
-          <View style={{ gap: 16 }}>
-            {POPULAR_DARES.map((dare, index) => (
-              <AnimatedPressable
-                key={dare.title}
-                entering={FadeInDown.delay(200 + index * 100)}
-                style={styles.card}>
-                <View style={{ padding: 16, gap: 12 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.cardTitle}>{dare.title}</Text>
-                    <View
-                      style={[
-                        styles.badge,
-                        { backgroundColor: DIFFICULTY_COLORS[dare.difficulty] + '20' },
-                      ]}>
-                      <Text
-                        style={[
-                          styles.badgeText,
-                          { color: DIFFICULTY_COLORS[dare.difficulty] },
-                        ]}>
-                        {dare.difficulty}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.cardContent}>{dare.description}</Text>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={[styles.text, { color: colors.primary }]}>
-                      {dare.participants} participants
-                    </Text>
-                    <Text style={[styles.text, { color: isDark ? colors.text.secondary.dark : colors.text.secondary.light }]}>
-                      by {dare.creator}
-                    </Text>
-                  </View>
-                </View>
-              </AnimatedPressable>
+        <ScrollView contentContainerStyle={styles.content}>
+          {/* Categories */}
+          <Text style={styles.sectionTitle}>Browse by Category</Text>
+          <View style={styles.categoriesContainer}>
+            {CATEGORIES.map((category, index) => (
+              <AnimatedTouchable
+                key={category.id}
+                entering={FadeInDown.delay(100 + index * 100)}
+                style={styles.categoryCard}
+              >
+                <category.icon size={24} color={category.color} />
+                <Text style={styles.categoryTitle}>{category.title}</Text>
+              </AnimatedTouchable>
             ))}
           </View>
-        </View>
-      </ScrollView>
-    </View>
+
+          {/* Popular Dares */}
+          <Text style={styles.sectionTitle}>Popular Dares</Text>
+          {POPULAR_DARES.map((dare, index) => (
+            <AnimatedTouchable
+              key={index}
+              entering={FadeInDown.delay(200 + index * 100)}
+              style={styles.dareCard}
+            >
+              <View style={styles.dareContent}>
+                <View style={[
+                  styles.difficultyBadge,
+                  { backgroundColor: DIFFICULTY_COLORS[dare.difficulty] }
+                ]}>
+                  <Text style={styles.difficultyText}>{dare.difficulty}</Text>
+                </View>
+                <Text style={styles.dareTitle}>{dare.title}</Text>
+                <Text style={styles.dareDescription}>{dare.description}</Text>
+                <View style={styles.dareFooter}>
+                  <Text style={styles.participants}>
+                    {dare.participants} participants
+                  </Text>
+                  <Text style={styles.creator}>
+                    by {dare.creator}
+                  </Text>
+                </View>
+              </View>
+            </AnimatedTouchable>
+          ))}
+        </ScrollView>
+      </View>
+    </SafeAreaWrapper>
   );
 }

@@ -1,26 +1,61 @@
 import { Tabs } from 'expo-router';
-import { Platform, useColorScheme } from 'react-native';
+import { Platform } from 'react-native';
 import { Home, Award, Plus, Compass, User } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
-import { colors, useThemeStyles } from '@/styles/globalStyles';
+import { useTheme } from '@/context/ThemeContext';
+import { useMemo } from 'react';
 
 const TAB_ICON_SIZE = 24;
 
+// Fallback colors that match the existing theme
+const defaultColors = {
+  primary: '#2563EB',
+  background: {
+    dark: '#111827',
+    light: '#FFFFFF',
+    card: {
+      dark: '#1F2937',
+      light: '#F3F4F6'
+    }
+  },
+  text: {
+    primary: {
+      dark: '#F9FAFB',
+      light: '#111827'
+    },
+    secondary: {
+      dark: '#9CA3AF',
+      light: '#6B7280'
+    }
+  }
+};
+
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const styles = useThemeStyles();
+  const { colors, isDark } = useTheme();
   
+  // Ensure we have valid colors even if theme isn't loaded
+  const backgroundColor = isDark ? '#1F2937' : '#FFFFFF';
+  const borderColor = isDark ? '#374151' : '#E5E7EB';
+  const activeColor = colors?.primary ?? '#2563EB';
+  const inactiveColor = isDark ? '#9CA3AF' : '#6B7280';
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          ...styles.tabBar,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          elevation: 0,
+          height: 60,
           backgroundColor: Platform.select({
             ios: 'transparent',
-            default: isDark ? colors.background.card.dark : colors.background.card.light,
+            default: backgroundColor,
           }),
+          borderTopWidth: 1,
+          borderTopColor: borderColor,
         },
         tabBarBackground: Platform.select({
           ios: () => (
@@ -38,28 +73,14 @@ export default function TabLayout() {
           ),
           default: undefined,
         }),
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: isDark ? colors.text.secondary.dark : colors.text.secondary.light,
-        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarActiveTintColor: activeColor,
+        tabBarInactiveTintColor: inactiveColor,
+        tabBarLabelStyle: {
+          fontFamily: 'Inter-Medium',
+          fontSize: 12,
+          marginBottom: 4,
+        },
       }}>
-      <Tabs.Screen
-        name="create"
-        options={{
-          title: 'Create',
-          tabBarIcon: ({ color }) => (
-            <Plus size={TAB_ICON_SIZE} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="leaderboard"
-        options={{
-          title: 'Top',
-          tabBarIcon: ({ color }) => (
-            <Award size={TAB_ICON_SIZE} color={color} />
-          ),
-        }}
-      />
       <Tabs.Screen
         name="index"
         options={{
@@ -75,6 +96,24 @@ export default function TabLayout() {
           title: 'Discover',
           tabBarIcon: ({ color }) => (
             <Compass size={TAB_ICON_SIZE} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="leaderboard"
+        options={{
+          title: 'Top',
+          tabBarIcon: ({ color }) => (
+            <Award size={TAB_ICON_SIZE} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="create/index"
+        options={{
+          title: 'Create',
+          tabBarIcon: ({ color }) => (
+            <Plus size={TAB_ICON_SIZE} color={color} />
           ),
         }}
       />

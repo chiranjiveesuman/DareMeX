@@ -1,8 +1,9 @@
-import { View, Text, Image, ScrollView, useColorScheme } from 'react-native';
+import React from 'react';
+import { View, Text, Image, ScrollView, StyleSheet } from 'react-native';
 import { Crown, Trophy, Medal } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { globalStyles, colors, gradientColors, useThemeStyles } from '@/styles/globalStyles';
+import { useTheme } from '@/context/ThemeContext';
+import SafeAreaWrapper from '@/components/SafeAreaWrapper';
 
 interface LeaderboardUser {
   rank: number;
@@ -48,86 +49,145 @@ const TOP_USERS: LeaderboardUser[] = [
   },
 ];
 
+const BADGE_COLORS = {
+  1: '#FFD700', // Gold
+  2: '#C0C0C0', // Silver
+  3: '#CD7F32', // Bronze
+};
+
 export default function LeaderboardScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const styles = useThemeStyles();
+  const { colors, isDark } = useTheme();
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background[isDark ? 'dark' : 'light'],
+    },
+    header: {
+      padding: 16,
+      backgroundColor: colors.background.card[isDark ? 'dark' : 'light'],
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#374151' : '#E5E7EB',
+    },
+    headerTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 32,
+      color: colors.text.primary[isDark ? 'dark' : 'light'],
+      marginBottom: 4,
+    },
+    headerSubtitle: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 16,
+      color: colors.text.secondary[isDark ? 'dark' : 'light'],
+    },
+    content: {
+      padding: 16,
+      paddingBottom: 32,
+    },
+    userCard: {
+      backgroundColor: colors.background.card[isDark ? 'dark' : 'light'],
+      borderRadius: 12,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: isDark ? '#374151' : '#E5E7EB',
+    },
+    userCardContent: {
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+    },
+    rankBadge: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background.card[isDark ? 'dark' : 'light'],
+    },
+    rankText: {
+      fontFamily: 'Inter-Bold',
+      fontSize: 16,
+      color: colors.text.primary[isDark ? 'dark' : 'light'],
+    },
+    avatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+    },
+    userInfo: {
+      flex: 1,
+    },
+    userName: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 16,
+      color: colors.text.primary[isDark ? 'dark' : 'light'],
+      marginBottom: 4,
+    },
+    points: {
+      fontFamily: 'Inter-Medium',
+      fontSize: 14,
+      color: colors.text.secondary[isDark ? 'dark' : 'light'],
+    },
+  });
 
   const getBadgeColor = (rank: number) => {
-    switch (rank) {
-      case 1: return '#FFD700'; // Gold
-      case 2: return '#C0C0C0'; // Silver
-      case 3: return '#CD7F32'; // Bronze
-      default: return colors.primary;
-    }
+    return BADGE_COLORS[rank as keyof typeof BADGE_COLORS] || colors.primary;
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient
-        colors={[gradientColors.header.start, gradientColors.header.end]}
-        style={styles.headerGradient}>
-        <Text style={styles.headerTitle}>Leaderboard</Text>
-        <Text style={styles.headerSubtitle}>Top performers this week</Text>
-      </LinearGradient>
+    <SafeAreaWrapper>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Leaderboard</Text>
+          <Text style={styles.headerSubtitle}>Top performers this week</Text>
+        </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
-        {/* Top Users */}
-        <View style={{ gap: 16 }}>
+        <ScrollView contentContainerStyle={styles.content}>
           {TOP_USERS.map((user, index) => (
             <Animated.View
               key={user.name}
               entering={FadeInDown.delay(100 + index * 100)}
-              style={styles.card}>
-              <View style={{ 
-                padding: 16, 
-                flexDirection: 'row', 
-                alignItems: 'center', 
-                gap: 16 
-              }}>
-                <View style={{ 
-                  width: 40, 
-                  height: 40, 
-                  borderRadius: 20, 
-                  backgroundColor: getBadgeColor(user.rank) + '20',
-                  justifyContent: 'center', 
-                  alignItems: 'center' 
-                }}>
-                  <Text style={{ 
-                    fontFamily: 'SpaceGrotesk-Bold', 
-                    fontSize: 16, 
-                    color: getBadgeColor(user.rank) 
-                  }}>
+              style={styles.userCard}
+            >
+              <View style={styles.userCardContent}>
+                <View style={[
+                  styles.rankBadge,
+                  { backgroundColor: getBadgeColor(user.rank) + '20' }
+                ]}>
+                  <Text style={[
+                    styles.rankText,
+                    { color: getBadgeColor(user.rank) }
+                  ]}>
                     #{user.rank}
                   </Text>
                 </View>
                 
                 <Image 
                   source={{ uri: user.image }} 
-                  style={{ 
-                    width: 48, 
-                    height: 48, 
-                    borderRadius: 24,
-                    borderWidth: user.rank <= 3 ? 2 : 0,
-                    borderColor: getBadgeColor(user.rank)
-                  }} 
+                  style={[
+                    styles.avatar,
+                    user.rank <= 3 && {
+                      borderWidth: 2,
+                      borderColor: getBadgeColor(user.rank)
+                    }
+                  ]} 
                 />
                 
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={styles.cardTitle}>{user.name}</Text>
+                <View style={styles.userInfo}>
+                  <View style={styles.nameContainer}>
+                    <Text style={styles.userName}>{user.name}</Text>
                     {user.badge && (
                       <user.badge size={16} color={getBadgeColor(user.rank)} />
                     )}
                   </View>
-                  <Text style={styles.cardContent}>{user.points} points</Text>
+                  <Text style={styles.points}>{user.points} points</Text>
                 </View>
               </View>
             </Animated.View>
           ))}
-        </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </SafeAreaWrapper>
   );
 }

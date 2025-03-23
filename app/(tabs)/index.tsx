@@ -1,12 +1,13 @@
-import { View, Text, Pressable, ScrollView, useColorScheme } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import React from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Users, Lock, Sparkles, Bell } from 'lucide-react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import { globalStyles, colors, gradientColors, useThemeStyles } from '@/styles/globalStyles';
+import { useTheme } from '@/context/ThemeContext';
 import { UserSearch } from '@/components/UserSearch';
+import SafeAreaWrapper from '@/components/SafeAreaWrapper';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface DareCategory {
   id: string;
@@ -65,81 +66,197 @@ const RECENT_DARES: RecentDare[] = [
 ];
 
 export default function HomeScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const styles = useThemeStyles();
+  const { colors, isDark } = useTheme();
   const router = useRouter();
+
+  const handleNotificationPress = () => {
+    router.push('../../notifications');
+  };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors?.background?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#111827' : '#FFFFFF'),
+    },
+    header: {
+      padding: 16,
+      backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#1F2937' : '#F3F4F6'),
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#374151' : '#E5E7EB',
+    },
+    headerTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 32,
+      color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
+      marginBottom: 4,
+    },
+    headerSubtitle: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 16,
+      color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#9CA3AF' : '#6B7280'),
+    },
+    notificationButton: {
+      position: 'absolute',
+      top: 16,
+      right: 16,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#1F2937' : '#F3F4F6'),
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: isDark ? '#374151' : '#E5E7EB',
+      zIndex: 1,
+    },
+    content: {
+      padding: 16,
+      paddingBottom: 32,
+    },
+    sectionTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 20,
+      color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
+      marginBottom: 16,
+    },
+    categoryCard: {
+      backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#1F2937' : '#F3F4F6'),
+      borderRadius: 12,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: isDark ? '#374151' : '#E5E7EB',
+    },
+    categoryContent: {
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+    },
+    iconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors?.primary?.[isDark ? 'dark' : 'light'] + '20',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    categoryInfo: {
+      flex: 1,
+    },
+    categoryTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 16,
+      color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
+      marginBottom: 4,
+    },
+    categoryDescription: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 14,
+      color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#9CA3AF' : '#6B7280'),
+    },
+    dareCard: {
+      backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#1F2937' : '#F3F4F6'),
+      borderRadius: 12,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: isDark ? '#374151' : '#E5E7EB',
+    },
+    dareContent: {
+      padding: 16,
+      gap: 12,
+    },
+    dareTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 18,
+      color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
+    },
+    dareFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    participants: {
+      fontFamily: 'Inter-Medium',
+      fontSize: 14,
+      color: colors?.primary?.[isDark ? 'dark' : 'light'],
+    },
+    creator: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 14,
+      color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#9CA3AF' : '#6B7280'),
+    },
+  });
   
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient
-        colors={[gradientColors.header.start, gradientColors.header.end]}
-        style={[styles.headerGradient, { position: 'relative' }]}>
-        <View style={{ position: 'absolute', top: 16, right: 16 }}>
-          <Pressable 
-            style={[styles.iconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
-            onPress={() => router.push('/notifications')}
+    <SafeAreaWrapper>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.notificationButton}
+            onPress={handleNotificationPress}
+            activeOpacity={0.6}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Bell size={20} color="#FFFFFF" />
-          </Pressable>
+            <Bell 
+              size={24} 
+              color={colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827')}
+            />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>DareMeX</Text>
+          <Text style={styles.headerSubtitle}>Dare to be different</Text>
         </View>
-        <Text style={styles.headerTitle}>DareMeX</Text>
-        <Text style={styles.headerSubtitle}>Dare to be different</Text>
-      </LinearGradient>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
-        {/* Search Bar */}
-        <UserSearch />
+        <ScrollView contentContainerStyle={styles.content}>
+          {/* Search Bar */}
+          <UserSearch />
 
-        {/* Categories */}
-        <View style={{ marginBottom: 24 }}>
-          <Text style={[styles.title, { marginBottom: 16 }]}>Dare Categories</Text>
-          <View style={{ gap: 12 }}>
+          {/* Categories */}
+          <View style={{ marginBottom: 24 }}>
+            <Text style={styles.sectionTitle}>Dare Categories</Text>
             {CATEGORIES.map((category, index) => (
-              <AnimatedPressable
+              <AnimatedTouchable
                 key={category.id}
                 entering={FadeInDown.delay(100 + index * 100)}
-                style={styles.card}>
-                <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                style={styles.categoryCard}
+              >
+                <View style={styles.categoryContent}>
                   <View style={styles.iconContainer}>
-                    <category.icon size={20} color={colors.primary} />
+                    <category.icon size={20} color={colors?.primary?.[isDark ? 'dark' : 'light']} />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cardTitle}>{category.title}</Text>
-                    <Text style={styles.cardContent}>{category.description}</Text>
+                  <View style={styles.categoryInfo}>
+                    <Text style={styles.categoryTitle}>{category.title}</Text>
+                    <Text style={styles.categoryDescription}>{category.description}</Text>
                   </View>
                 </View>
-              </AnimatedPressable>
+              </AnimatedTouchable>
             ))}
           </View>
-        </View>
 
-        {/* Recent Activity */}
-        <View>
-          <Text style={[styles.title, { marginBottom: 16 }]}>Recent Activity</Text>
-          <View style={{ gap: 16 }}>
+          {/* Recent Activity */}
+          <View>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
             {RECENT_DARES.map((dare, index) => (
-              <AnimatedPressable
+              <AnimatedTouchable
                 key={dare.id}
                 entering={FadeInDown.delay(200 + index * 100)}
-                style={styles.card}>
-                <View style={{ padding: 16, gap: 12 }}>
-                  <Text style={styles.cardTitle}>{dare.title}</Text>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={[styles.text, { color: colors.primary }]}>
+                style={styles.dareCard}
+              >
+                <View style={styles.dareContent}>
+                  <Text style={styles.dareTitle}>{dare.title}</Text>
+                  <View style={styles.dareFooter}>
+                    <Text style={styles.participants}>
                       {dare.participants} participants
                     </Text>
-                    <Text style={[styles.text, { color: isDark ? colors.text.secondary.dark : colors.text.secondary.light }]}>
+                    <Text style={styles.creator}>
                       by {dare.creator}
                     </Text>
                   </View>
                 </View>
-              </AnimatedPressable>
+              </AnimatedTouchable>
             ))}
           </View>
-        </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </SafeAreaWrapper>
   );
 }

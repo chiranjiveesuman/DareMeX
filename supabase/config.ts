@@ -20,4 +20,16 @@ export const supabase = createClient(
   }
 );
 
+// Initialize storage bucket if it doesn't exist
+(async () => {
+  const { data: buckets } = await supabase.storage.listBuckets();
+  if (!buckets?.find(b => b.name === 'dare-media')) {
+    await supabase.storage.createBucket('dare-media', {
+      public: true,
+      fileSizeLimit: 52428800, // 50MB
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'video/mp4']
+    });
+  }
+})();
+
 export default supabase;

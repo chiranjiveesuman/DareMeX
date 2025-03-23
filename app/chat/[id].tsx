@@ -1,426 +1,146 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Image,
-  StyleSheet,
-  useColorScheme,
-  SafeAreaView,
-  ActivityIndicator,
-  TouchableOpacity,
-} from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { Send, ChevronLeft } from 'lucide-react-native';
-import { useChat } from '@/context/ChatContext';
-import { useAuth } from '@/context/AuthContext';
+import React, { useEffect, useState, useCallback, memo, useMemo, useRef } from 'react';
+import { View, Text, Pressable, FlatList, StyleSheet, Image, TouchableOpacity, ActivityIndicator, TextInput, ViewStyle, TextStyle } from 'react-native';
+import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
+import { Send, Camera, Image as ImageIcon, ArrowLeft, Phone, Video } from 'lucide-react-native';
 import { supabase } from '@/supabase/config';
-import { colors } from '@/styles/globalStyles';
-import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import SafeAreaWrapper from '@/components/SafeAreaWrapper';
 
-interface Profile {
-  username: string;
-  avatar_url?: string;
+interface Message {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  content: string;
+  created_at: string;
+  read: boolean;
+  type?: 'text' | 'image' | 'video' | 'file';
+  status?: 'sent' | 'delivered' | 'read';
+  sender: {
+    username: string;
+    avatar_url?: string;
+  };
 }
 
-const defaultAvatar = require('@/assets/default-avatar.png');
+interface Profile {
+  id: string;
+  username: string;
+  avatar_url?: string;
+  display_name?: string;
+}
 
-export default function ChatScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const { user } = useAuth();
-  const { messages, sendMessage, loadMessages, markAsRead } = useChat();
-  const [newMessage, setNewMessage] = useState('');
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const flatListRef = useRef<FlatList>(null);
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const isInitialLoadRef = useRef(true);
-  const [shouldScrollToEnd, setShouldScrollToEnd] = useState(false);
+// Constants for layout calculations
+const ITEM_HEIGHT = 80;
+const SEPARATOR_HEIGHT = 8;
+const PAGE_SIZE = 20;
 
-  // Keep a reference to the latest messages count to detect new ones
-  const prevMessageCountRef = useRef(0);
-
-  // Load chat data on initial mount or ID change
-  useEffect(() => {
-    loadChatData();
-    isInitialLoadRef.current = true;
-    
-    return () => {
-      // Cleanup not needed due to global chat context
-    };
-  }, [id]);
-
-  // Filter messages for the current conversation
-  const currentChatMessages = useCallback(() => {
-    if (!user || !id) return [];
-    
-    // Ensure we always see the latest messages for this conversation
-    const filteredMessages = messages.filter(message => 
-      (message.sender_id === user.id && message.receiver_id === id as string) || 
-      (message.sender_id === id as string && message.receiver_id === user.id)
-    );
-    
-    // Check for new messages and scroll if needed
-    if (filteredMessages.length > prevMessageCountRef.current) {
-      console.log(`New messages detected: ${filteredMessages.length} vs ${prevMessageCountRef.current}`);
-      setShouldScrollToEnd(true);
-    }
-    
-    // Update our reference count
-    prevMessageCountRef.current = filteredMessages.length;
-    
-    return filteredMessages;
-  }, [messages, user?.id, id]);
-  
-  // This will force the FlatList to rerender when messages change
-  useEffect(() => {
-    if (messages.length > 0) {
-      console.log(`Messages updated: ${messages.length} total messages in state`);
-      // Force a re-render and scroll when messages are updated
-      setShouldScrollToEnd(true);
-    }
-  }, [messages]);
-
-  // This effect handles the actual scrolling after render
-  useEffect(() => {
-    if (shouldScrollToEnd && !loading) {
-      console.log('Executing scroll to end');
-      
-      // Use a shorter delay for quicker response
-      const timer = setTimeout(() => {
-        if (flatListRef.current) {
-          flatListRef.current.scrollToEnd({ animated: true });
-          console.log('Scrolled to end');
-        }
-        setShouldScrollToEnd(false);
-      }, 50);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [shouldScrollToEnd, loading]);
-
-  const loadChatData = async () => {
-    if (!id || !user) return;
-
-    try {
-      setLoading(true);
-      console.log('Loading chat data for partner:', id);
-      
-      // Load chat partner's profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('username, avatar_url')
-        .eq('id', id)
-        .single();
-
-      if (profileError) throw profileError;
-      setProfile(profileData);
-
-      // Load messages
-      await loadMessages(id as string);
-      
-      // Set flag to scroll to end after initial load
-      setShouldScrollToEnd(true);
-
-      // Mark messages as read when chat is opened
-      await markAsRead(id);
-    } catch (error) {
-      console.error('Error loading chat data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSend = async () => {
-    if (!newMessage.trim() || !id) return;
-
-    try {
-      // Store message content and clear input immediately for better UX
-      const messageContent = newMessage.trim();
-      setNewMessage('');
-      
-      // Send the message
-      await sendMessage(id as string, messageContent);
-      
-      // Set flag to scroll to end after sending
-      setShouldScrollToEnd(true);
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
-  };
-
-  // Format timestamps for display
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return formatDistanceToNow(date, { addSuffix: true });
-  };
-
-  // Function to check if there are new messages for this conversation
-  const hasNewMessages = useCallback(() => {
-    if (!user || !id || messages.length === 0) return false;
-    
-    // Check for messages from the chat partner that are unread
-    const unreadMessages = messages.filter(message => 
-      message.sender_id === id && 
-      message.receiver_id === user.id && 
-      !message.read
-    );
-    
-    return unreadMessages.length > 0;
-  }, [messages, user?.id, id]);
-
-  // Sort messages by creation time, newest last
-  const sortedMessages = [...messages]
-    .filter(msg => (msg.sender_id === user?.id && msg.receiver_id === id) || 
-                 (msg.sender_id === id && msg.receiver_id === user?.id))
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  
-  console.log(`Rendering chat with ${sortedMessages.length} messages`);
-  
-  // Auto-scroll to the bottom whenever messages change
-  useEffect(() => {
-    if (sortedMessages.length > 0 && flatListRef.current) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-      console.log('Auto-scrolling to latest message');
-    }
-  }, [sortedMessages.length]);
-
-  // Render a single message item
-  const renderMessage = ({ item }: { item: Message }) => {
-    const isOwnMessage = item.sender_id === user?.id;
-    
-    return (
-      <View style={[
-        styles.messageContainer,
-        isOwnMessage ? styles.sentMessage : styles.receivedMessage
-      ]}>
-        {!isOwnMessage && (
-          <Image
-            source={
-              item.sender?.avatar_url 
-                ? { uri: item.sender.avatar_url } 
-                : defaultAvatar
-            }
-            style={styles.avatar}
-            contentFit="cover"
-            transition={200}
-          />
-        )}
-        <View style={styles.messageContent}>
-          <Text style={[
-            styles.messageText,
-            !isOwnMessage && styles.receivedMessageText
-          ]}>
-            {item.content}
-          </Text>
-          <View style={styles.messageFooter}>
-            <Text style={styles.timeText}>
-              {formatTime(item.created_at)}
-            </Text>
-            {isOwnMessage && renderMessageStatus(item)}
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  // Render message status indicators
-  const renderMessageStatus = (message: Message) => {
-    if (message.sender_id !== user?.id) return null;
-    
-    let statusText = '';
-    let statusColor = 'gray';
-    
-    switch (message.status) {
-      case 'sent':
-        statusText = '✓';
-        statusColor = '#999';
-        break;
-      case 'delivered':
-        statusText = '✓✓';
-        statusColor = '#999';
-        break;
-      case 'read':
-        statusText = '✓✓';
-        statusColor = '#2563EB';
-        break;
-      default:
-        statusText = '✓';
-        statusColor = '#999';
-    }
-    
-    return (
-      <Text style={[styles.messageStatus, { color: statusColor }]}>
-        {statusText}
-      </Text>
-    );
-  };
-
-  const keyExtractor = React.useCallback((item) => item.id.toString(), []);
-
-  const onContentSizeChange = React.useCallback(() => {
-    if (flatListRef.current && sortedMessages.length > 0) {
-      flatListRef.current.scrollToEnd({ animated: false });
-    }
-  }, [sortedMessages.length]);
-
-  const onLayout = React.useCallback(() => {
-    if (flatListRef.current && sortedMessages.length > 0) {
-      flatListRef.current.scrollToEnd({ animated: false });
-    }
-  }, [sortedMessages.length]);
-
-  // Add this function to extract FlatList component rendering
-  const renderMessageList = () => (
-    <FlatList
-      ref={flatListRef}
-      data={sortedMessages}
-      renderItem={renderMessage}
-      keyExtractor={keyExtractor}
-      contentContainerStyle={styles.messageList}
-      removeClippedSubviews={false}
-      showsVerticalScrollIndicator={true}
-      initialNumToRender={20}
-      windowSize={21}
-      maxToRenderPerBatch={10}
-      updateCellsBatchingPeriod={30}
-      // This forces a re-render whenever messages change
-      extraData={sortedMessages.length + (sortedMessages.length > 0 ? sortedMessages[sortedMessages.length - 1].id : '')}
-      onContentSizeChange={onContentSizeChange}
-      onLayout={onLayout}
-      keyboardShouldPersistTaps="handled"
-      ListEmptyComponent={
-        <View style={styles.emptyContainerInList}>
-          <Text style={styles.emptyText}>No messages yet</Text>
-          <Text style={styles.emptySubtext}>Start a conversation with {profile?.username}</Text>
-        </View>
-      }
-    />
-  );
-
+// Pre-define all styles to prevent recreation
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDark ? colors.background.dark : colors.background.light,
-    },
-    keyboardView: {
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-    },
-    chatContainer: {
-      flex: 1,
-      position: 'relative',
     },
     header: {
+    padding: 16,
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 16,
       borderBottomWidth: 1,
-      borderBottomColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-      backgroundColor: isDark ? colors.background.card.dark : colors.background.card.light,
     },
     backButton: {
-      width: 40,
-      height: 40,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 8,
-    },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      marginRight: 12,
-    },
-    username: {
-      fontFamily: 'SpaceGrotesk-Bold',
-      fontSize: 18,
-      color: isDark ? colors.text.dark : colors.text.light,
+    marginRight: 16,
+  },
+  headerTitle: {
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 24,
+  },
+  headerSubtitle: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 16,
+    marginLeft: 'auto',
+  },
+  content: {
+    flex: 1,
     },
     messageList: {
-      paddingHorizontal: 16,
-      paddingTop: 16,
-      paddingBottom: 16,
+    padding: 16,
+    flexGrow: 1,
     },
     messageContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: 8,
       maxWidth: '80%',
-      marginVertical: 4,
+  },
+  messageBubble: {
       padding: 12,
       borderRadius: 16,
+    marginHorizontal: 4,
     },
     sentMessage: {
-      alignSelf: 'flex-end',
-      backgroundColor: colors.primary,
+    backgroundColor: '#2563EB',
+    marginLeft: 'auto',
+    borderBottomRightRadius: 4,
     },
     receivedMessage: {
-      alignSelf: 'flex-start',
-      backgroundColor: isDark ? colors.background.card.dark : colors.background.card.light,
+    backgroundColor: '#1F2937',
+    marginRight: 'auto',
+    borderBottomLeftRadius: 4,
     },
     messageText: {
+    fontSize: 16,
       fontFamily: 'Inter-Regular',
-      fontSize: 16,
       color: '#FFFFFF',
     },
-    receivedMessageText: {
-      color: isDark ? colors.text.dark : colors.text.light,
-    },
-    timeText: {
+  timestamp: {
+    fontSize: 12,
       fontFamily: 'Inter-Regular',
-      fontSize: 12,
-      color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
+    opacity: 0.7,
       marginTop: 4,
-      alignSelf: 'flex-end',
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
     },
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 12,
+    padding: 16,
       borderTopWidth: 1,
-      borderTopColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-      backgroundColor: isDark ? colors.background.card.dark : colors.background.card.light,
+    gap: 12,
     },
     input: {
       flex: 1,
-      maxHeight: 100,
-      minHeight: 40,
-      marginRight: 12,
+    height: 40,
+    borderRadius: 20,
       paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
-      backgroundColor: isDark ? colors.background.dark : '#F3F4F6',
-      color: isDark ? colors.text.dark : colors.text.light,
+    fontSize: 16,
       fontFamily: 'Inter-Regular',
     },
     sendButton: {
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: colors.primary,
+    backgroundColor: '#2563EB',
       justifyContent: 'center',
       alignItems: 'center',
     },
-    disabledButton: {
-      backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+  actionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
     },
     loadingContainer: {
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
-    },
-    loadingText: {
-      fontFamily: 'Inter-Regular',
-      fontSize: 16,
-      color: isDark ? colors.text.dark : colors.text.light,
-      marginTop: 12,
     },
     emptyContainer: {
       flex: 1,
@@ -428,100 +148,457 @@ export default function ChatScreen() {
       alignItems: 'center',
       padding: 16,
     },
-    emptyContainerInList: {
-      paddingVertical: 80,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
     emptyText: {
-      fontFamily: 'SpaceGrotesk-Bold',
-      fontSize: 18,
-      color: isDark ? colors.text.dark : colors.text.light,
-      marginBottom: 8,
-    },
-    emptySubtext: {
-      fontFamily: 'Inter-Regular',
-      fontSize: 14,
-      color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
+    fontFamily: 'Inter-Bold',
+    fontSize: 16,
       textAlign: 'center',
     },
-    messageStatus: {
-      fontFamily: 'Inter-Regular',
-      fontSize: 12,
-      color: 'gray',
-      marginLeft: 4,
+});
+
+// Memoized message item component
+const MessageItem = memo(({ item, isSent, colors, isDark, formatTime }: {
+  item: Message;
+  isSent: boolean;
+  colors: any;
+  isDark: boolean;
+  formatTime: (timestamp: string) => string;
+}) => {
+  const containerStyle = useMemo(() => ({
+    ...styles.messageContainer,
+    flexDirection: isSent ? 'row-reverse' : 'row' as const,
+    alignItems: 'flex-end' as const,
+    marginBottom: 8,
+    maxWidth: '80%',
+  } satisfies ViewStyle), [isSent]);
+
+  const bubbleStyle = useMemo(() => ({
+    ...styles.messageBubble,
+    ...(isSent ? styles.sentMessage : styles.receivedMessage),
+  } satisfies ViewStyle), [isSent]);
+
+  const textStyle = useMemo(() => ({
+    ...styles.messageText,
+    color: '#FFFFFF',
+  } satisfies TextStyle), []);
+
+  const timestampStyle = useMemo(() => ({
+    ...styles.timestamp,
+    color: '#FFFFFF',
+    opacity: 0.7,
+    textAlign: isSent ? 'right' : 'left' as const,
+  } satisfies TextStyle), [isSent]);
+
+  const avatarUri = useMemo(() => 
+    item.sender?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sender?.username || 'User')}`,
+  [item.sender?.avatar_url, item.sender?.username]);
+
+  const formattedTime = useMemo(() => formatTime(item.created_at), [formatTime, item.created_at]);
+
+  return (
+    <View style={containerStyle}>
+      {!isSent && <Image source={{ uri: avatarUri }} style={styles.avatar} />}
+      <View style={bubbleStyle}>
+        <Text style={textStyle}>{item.content}</Text>
+        <Text style={timestampStyle}>{formattedTime}</Text>
+      </View>
+      {isSent && <Image source={{ uri: avatarUri }} style={styles.avatar} />}
+    </View>
+  );
+}, (prev, next) => {
+  return (
+    prev.item.id === next.item.id &&
+    prev.isSent === next.isSent &&
+    prev.isDark === next.isDark &&
+    prev.item.created_at === next.item.created_at
+  );
+});
+
+export default function ChatScreen() {
+  const router = useRouter();
+  const { id } = useLocalSearchParams();
+  const { user } = useAuth();
+  const { colors, isDark } = useTheme();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreData, setHasMoreData] = useState(true);
+  const [page, setPage] = useState(0);
+  const [chatPartner, setChatPartner] = useState<Profile | null>(null);
+  const flatListRef = useRef<FlatList>(null);
+  const messagesRef = useRef(messages);
+  const pageRef = useRef(page);
+
+  // Update refs when state changes
+  useEffect(() => {
+    messagesRef.current = messages;
+    pageRef.current = page;
+  }, [messages, page]);
+
+  useEffect(() => {
+    if (!user || !id) return;
+
+    // Load chat partner profile
+    const loadChatPartner = async () => {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (profile) {
+        setChatPartner(profile);
+      }
+    };
+
+    loadChatPartner();
+
+    // Load initial messages
+    loadMessages(true);
+
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel(`chat:${id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'messages',
+        filter: `(sender_id=eq.${user.id} AND receiver_id=eq.${id}) OR (sender_id=eq.${id} AND receiver_id=eq.${user.id})`,
+      }, async (payload: { eventType: string; new: any }) => {
+        if (payload.eventType === 'INSERT') {
+          try {
+            // Get the message with sender profile in a single query
+            const { data: msgData, error: msgError } = await supabase
+              .from('messages')
+              .select(`
+                *,
+                sender:profiles!messages_sender_id_fkey (
+                  id,
+                  username,
+                  avatar_url
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
+
+            if (msgError) {
+              console.error('Error fetching message details:', msgError);
+              return;
+            }
+
+            if (msgData) {
+              const newMessage: Message = {
+                id: msgData.id,
+                sender_id: msgData.sender_id,
+                receiver_id: msgData.receiver_id,
+                content: msgData.content,
+                created_at: msgData.created_at,
+                read: msgData.read,
+                type: msgData.type,
+                status: msgData.status,
+                sender: msgData.sender ? {
+                  username: msgData.sender.username || 'Unknown User',
+                  avatar_url: msgData.sender.avatar_url
+                } : { username: 'Unknown User' }
+              };
+
+              // Add new message to the list
+              setMessages(prev => [...prev, newMessage]);
+
+              // Mark message as read if it's received
+              if (msgData.receiver_id === user.id && !msgData.read) {
+                await supabase
+                  .from('messages')
+                  .update({ read: true })
+                  .eq('id', msgData.id);
+              }
+            }
+          } catch (error) {
+            console.error('Error processing new message:', error);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user?.id, id]);
+
+  const loadMessages = async (reset = false) => {
+    if (!user || !id || loadingMore) return;
+
+    try {
+      if (reset) {
+        setLoading(true);
+        setPage(0);
+      } else {
+        setLoadingMore(true);
+      }
+
+      const currentPage = reset ? 0 : page;
+
+      const { data: messageData, error: messageError } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          sender:profiles!messages_sender_id_fkey (
+            id,
+            username,
+            avatar_url
+          )
+        `)
+        .eq('receiver_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
+
+      if (messageError) throw messageError;
+
+      if (messageData && messageData.length < PAGE_SIZE) {
+        setHasMoreData(false);
+      }
+
+      const processedMessages: Message[] = messageData.map((msg: any) => ({
+        id: msg.id,
+        sender_id: msg.sender_id,
+        receiver_id: msg.receiver_id,
+        content: msg.content,
+        created_at: msg.created_at,
+        read: msg.read,
+        type: msg.type,
+        status: msg.status,
+        sender: msg.sender ? {
+          username: msg.sender.username || 'Unknown User',
+          avatar_url: msg.sender.avatar_url
+        } : { username: 'Unknown User' }
+      }));
+
+      if (reset) {
+        setMessages(processedMessages);
+      } else {
+        setMessages(prev => [...prev, ...processedMessages]);
+      }
+
+      if (!reset) {
+        setPage(currentPage + 1);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!user || !id || !newMessage.trim()) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          sender_id: user.id,
+          receiver_id: id,
+          content: newMessage.trim(),
+          type: 'text',
+          status: 'sent'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  };
+
+  const formatTime = useCallback((timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor(diff / (1000 * 60));
+
+    if (minutes < 60) {
+      return `${minutes}m ago`;
+    } else if (hours < 24) {
+      return `${hours}h ago`;
+    } else if (days === 1) {
+      return 'Yesterday';
+    } else if (days < 7) {
+      return `${days}d ago`;
+    } else {
+      return date.toLocaleDateString();
+    }
+  }, []);
+
+  // Memoized style objects
+  const screenStyle = useMemo(() => ({
+    ...styles.container,
+    backgroundColor: colors?.background?.[isDark ? 'dark' : 'light'],
+  }), [colors?.background, isDark]);
+
+  const headerStyle = useMemo(() => ({
+    ...styles.header,
+    backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'],
+    borderBottomColor: isDark ? '#374151' : '#E5E7EB',
+  }), [colors?.background?.card, isDark]);
+
+  const inputStyle = useMemo(() => ({
+    ...styles.input,
+    backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'],
+    color: colors?.text?.primary?.[isDark ? 'dark' : 'light'],
+    borderColor: isDark ? '#374151' : '#E5E7EB',
+  }), [colors?.background?.card, colors?.text?.primary, isDark]);
+
+  // Memoized render functions
+  const keyExtractor = useCallback((item: Message) => item.id.toString(), []);
+
+  const getItemLayout = useCallback((_: any, index: number) => ({
+    length: ITEM_HEIGHT + SEPARATOR_HEIGHT,
+    offset: (ITEM_HEIGHT + SEPARATOR_HEIGHT) * index,
+    index,
+  }), []);
+
+  const renderMessageItem = useCallback(({ item }: { item: Message }) => (
+    <MessageItem
+      item={item}
+      isSent={item.sender_id === user?.id}
+      colors={colors}
+      isDark={isDark}
+      formatTime={formatTime}
+    />
+  ), [colors, isDark, user?.id, formatTime]);
+
+  const renderSeparator = useCallback(() => <View style={{ height: SEPARATOR_HEIGHT }} />, []);
+
+  const renderEmpty = useCallback(() => (
+    <View style={styles.emptyContainer}>
+      <Text style={[styles.emptyText, { color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] }]}>
+        No messages yet. Start the conversation!
+      </Text>
+    </View>
+  ), [colors?.text?.primary, isDark]);
+
+  const renderFooter = useCallback(() => (
+    loadingMore ? (
+      <View style={{ padding: 16, alignItems: 'center' }}>
+        <ActivityIndicator size="small" color={colors?.primary} />
+      </View>
+    ) : null
+  ), [loadingMore, colors?.primary]);
+
+  const handleEndReached = useCallback(() => {
+    if (!loadingMore && hasMoreData) {
+      loadMessages();
+    }
+  }, [loadingMore, hasMoreData]);
+
+  // Super optimized FlatList props
+  const flatListProps = useMemo(() => ({
+    ref: flatListRef,
+    data: messages,
+    renderItem: renderMessageItem,
+    keyExtractor,
+    ItemSeparatorComponent: renderSeparator,
+    ListEmptyComponent: renderEmpty,
+    ListFooterComponent: renderFooter,
+    contentContainerStyle: styles.messageList,
+    removeClippedSubviews: true,
+    maxToRenderPerBatch: 3,
+    updateCellsBatchingPeriod: 100,
+    initialNumToRender: 10,
+    windowSize: 2,
+    getItemLayout,
+    showsVerticalScrollIndicator: false,
+    onEndReached: handleEndReached,
+    onEndReachedThreshold: 0.5,
+    maintainVisibleContentPosition: {
+      minIndexForVisible: 0,
     },
-    messageFooter: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    messageContent: {
-      flexDirection: 'column',
-    },
-  });
+  }), [
+    messages,
+    renderMessageItem,
+    keyExtractor,
+    renderSeparator,
+    renderEmpty,
+    renderFooter,
+    getItemLayout,
+    handleEndReached,
+  ]);
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading chat...</Text>
+      <SafeAreaWrapper>
+        <View style={screenStyle}>
+          <ActivityIndicator size="large" color={colors?.primary} />
         </View>
-      </SafeAreaView>
+      </SafeAreaWrapper>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <Stack.Screen
-          options={{
-            title: 'Chat'
-          }}
-        />
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <ChevronLeft size={24} color={isDark ? colors.text.dark : colors.text.light} />
-          </Pressable>
-          <Image
-            source={{
-              uri: profile?.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&auto=format&fit=crop',
-            }}
-            style={styles.avatar}
-          />
-          <Text style={styles.username}>{profile?.username}</Text>
+    <SafeAreaWrapper>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={screenStyle}>
+        <View style={headerStyle}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft size={24} color={colors?.text?.primary?.[isDark ? 'dark' : 'light']} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.headerTitle, { color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] }]}>
+              {chatPartner?.display_name || chatPartner?.username || 'Chat'}
+            </Text>
+            <Text style={[styles.headerSubtitle, { color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] }]}>
+              {chatPartner?.username}
+            </Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+              <Phone size={20} color={colors?.text?.primary?.[isDark ? 'dark' : 'light']} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+              <Video size={20} color={colors?.text?.primary?.[isDark ? 'dark' : 'light']} />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View style={styles.chatContainer}>
-          {renderMessageList()}
+        <View style={styles.content}>
+          <FlatList {...flatListProps} />
         </View>
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { borderTopColor: isDark ? '#374151' : '#E5E7EB' }]}>
+          <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+            <Camera size={20} color={colors?.text?.primary?.[isDark ? 'dark' : 'light']} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+            <ImageIcon size={20} color={colors?.text?.primary?.[isDark ? 'dark' : 'light']} />
+          </TouchableOpacity>
           <TextInput
-            style={styles.input}
+            style={inputStyle}
             value={newMessage}
             onChangeText={setNewMessage}
             placeholder="Type a message..."
-            placeholderTextColor={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
+            placeholderTextColor={colors?.text?.secondary?.[isDark ? 'dark' : 'light']}
             multiline
           />
-          <Pressable 
-            style={[
-              styles.sendButton,
-              !newMessage.trim() && styles.disabledButton
-            ]} 
-            onPress={handleSend}
+          <TouchableOpacity
+            style={[styles.sendButton, { opacity: newMessage.trim() ? 1 : 0.5 }]}
+            onPress={sendMessage}
             disabled={!newMessage.trim()}
+            activeOpacity={0.7}
           >
             <Send size={20} color="#FFFFFF" />
-          </Pressable>
+          </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </SafeAreaWrapper>
   );
 } 
