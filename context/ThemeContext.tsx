@@ -34,22 +34,22 @@ interface ThemeContextType {
 }
 
 const defaultColors: Colors = {
-  primary: '#2563EB',
+  primary: '#FF4D6A',
   background: {
-    dark: '#111827',
+    dark: '#000000',
     light: '#FFFFFF',
     card: {
-      dark: '#1F2937',
+      dark: '#0A0A0A',
       light: '#F3F4F6'
     }
   },
   text: {
     primary: {
-      dark: '#F9FAFB',
+      dark: '#FFFFFF',
       light: '#111827'
     },
     secondary: {
-      dark: '#9CA3AF',
+      dark: '#888888',
       light: '#6B7280'
     }
   }

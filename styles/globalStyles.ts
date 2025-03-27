@@ -12,18 +12,18 @@ export const colors = {
   
   // Background colors
   background: {
-    dark: '#111827',
+    dark: '#000000',
     light: '#FFFFFF',
     card: {
-      dark: '#1F2937',
+      dark: '#0A0A0A',
       light: '#F3F4F6'
     },
     input: {
-      dark: 'rgba(0, 0, 0, 0.2)',
+      dark: 'rgba(10, 10, 10, 0.8)',
       light: 'rgba(0, 0, 0, 0.05)'
     },
     iconContainer: {
-      dark: '#27272A',
+      dark: '#0A0A0A',
       light: '#E5E5E7'
     },
     header: {
