@@ -62,14 +62,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase
         .from('messages')
         .insert(newMessage)
-        .select()
+        .select('*, sender:profiles!messages_sender_id_fkey(*)')
         .single();
 
       if (error) throw error;
 
       if (data) {
-        setMessages(prev => [...prev, data]);
-        updateConversationWithNewMessage(data);
+        // Add the message immediately for better UX
+        setMessages(prev => [data, ...prev]);
+        // Update conversation list with new message
+        await loadConversations();
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -111,23 +113,32 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         schema: 'public',
         table: 'messages',
         filter: `or(sender_id.eq.${user.id},receiver_id.eq.${user.id})`
-      }, (payload) => {
+      }, async (payload) => {
         const newMessage = payload.new as Message;
         
         // Only update messages if we're in the relevant chat
         if (currentChatPartner.current === newMessage.sender_id || 
             currentChatPartner.current === newMessage.receiver_id) {
-          setMessages(prev => {
-            // Avoid duplicate messages
-            const exists = prev.some(msg => msg.id === newMessage.id);
-            if (!exists) {
-              return [...prev, newMessage];
-            }
-            return prev;
-          });
+          // Fetch the complete message with sender profile
+          const { data: messageWithProfile } = await supabase
+            .from('messages')
+            .select('*, sender:profiles!messages_sender_id_fkey(*)')
+            .eq('id', newMessage.id)
+            .single();
+
+          if (messageWithProfile) {
+            setMessages(prev => {
+              const exists = prev.some(msg => msg.id === messageWithProfile.id);
+              if (!exists) {
+                return [messageWithProfile, ...prev];
+              }
+              return prev;
+            });
+          }
         }
         
-        updateConversationWithNewMessage(newMessage);
+        // Refresh conversations list to show latest message
+        await loadConversations();
       })
       .subscribe();
 
