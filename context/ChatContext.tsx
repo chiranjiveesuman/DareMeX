@@ -1,45 +1,19 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/supabase/config';
 import { useAuth } from './AuthContext';
 import { Message, Conversation } from '@/types';
 
-// Message interface matching the database function return type
-interface Message {
-  id: string;
-  content: string;
-  created_at: string;
-  sender_id: string;
-  receiver_id: string;
-  read: boolean;
-  sender_username?: string;
-  sender_avatar_url?: string;
-}
-
-// Add a type for cached conversations
-interface MessageCache {
-  [key: string]: {
-    messages: Message[];
-    lastUpdated: number;
-  };
-}
-
-interface ConversationCache {
-  conversations: Conversation[];
-  lastUpdated: number;
-}
-
 interface ChatContextType {
   messages: Message[];
   conversations: Conversation[];
   sendMessage: (receiverId: string, content: string) => Promise<void>;
-  loadMessages: (messages: Message[]) => void;
+  loadMessages: (partnerId: string) => Promise<void>;
   loadConversations: () => Promise<void>;
   unreadCount: number;
   markAsRead: (userId: string) => Promise<void>;
   clearCache: () => void;
 }
-
-const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
@@ -48,40 +22,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const messageCache = useRef<MessageCache>({});
-  const conversationsCache = useRef<ConversationCache | null>(null);
   const currentChatPartner = useRef<string | null>(null);
 
-  // Load messages
-  const loadMessages = async (userId: string) => {
+  // Load messages for a specific chat
+  const loadMessages = async (partnerId: string) => {
     if (!user) return;
+    currentChatPartner.current = partnerId;
     
     try {
       const { data, error } = await supabase
         .from('messages')
-        .select(`
-          id,
-          content,
-          created_at,
-          sender_id,
-          receiver_id,
-          read,
-          type,
-          status,
-          profiles!sender_id(username, avatar_url)
-        `)
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .order('created_at', { ascending: false });
+        .select('*')
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${user.id})`)
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       
       if (data) {
-        const formattedMessages = data.map(msg => ({
-          ...msg,
-          sender_username: msg.profiles?.username,
-          sender_avatar_url: msg.profiles?.avatar_url
-        }));
-        setMessages(formattedMessages);
+        setMessages(data);
       }
     } catch (error) {
       console.error('Error loading messages:', error);
@@ -93,25 +51,110 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     try {
+      const newMessage = {
+        sender_id: user.id,
+        receiver_id: receiverId,
+        content: content,
+        created_at: new Date().toISOString(),
+        read: false
+      };
+
       const { data, error } = await supabase
         .from('messages')
-        .insert({
-          sender_id: user.id,
-          receiver_id: receiverId,
-          content: content,
-        })
-        .select('*')
+        .insert(newMessage)
+        .select()
         .single();
 
       if (error) throw error;
 
       if (data) {
-        // Add the new message to the state
         setMessages(prev => [...prev, data]);
+        updateConversationWithNewMessage(data);
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      throw error;
+    }
+  };
+
+  // Update conversations list with new message
+  const updateConversationWithNewMessage = (message: Message) => {
+    setConversations(prev => {
+      const existing = prev.find(conv => 
+        conv.user_id === message.sender_id || conv.user_id === message.receiver_id
+      );
+
+      if (existing) {
+        return prev.map(conv => {
+          if (conv.user_id === message.sender_id || conv.user_id === message.receiver_id) {
+            return {
+              ...conv,
+              last_message: message.content,
+              last_message_at: message.created_at,
+              unread_count: conv.user_id === message.sender_id ? conv.unread_count + 1 : conv.unread_count
+            };
+          }
+          return conv;
+        });
+      }
+      return prev;
+    });
+  };
+
+  // Subscribe to new messages
+  useEffect(() => {
+    if (!user) return;
+
+    const subscription = supabase
+      .channel('messages')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `or(sender_id.eq.${user.id},receiver_id.eq.${user.id})`
+      }, (payload) => {
+        const newMessage = payload.new as Message;
+        
+        // Only update messages if we're in the relevant chat
+        if (currentChatPartner.current === newMessage.sender_id || 
+            currentChatPartner.current === newMessage.receiver_id) {
+          setMessages(prev => {
+            // Avoid duplicate messages
+            const exists = prev.some(msg => msg.id === newMessage.id);
+            if (!exists) {
+              return [...prev, newMessage];
+            }
+            return prev;
+          });
+        }
+        
+        updateConversationWithNewMessage(newMessage);
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user]);
+
+  // Load conversations
+  const loadConversations = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .rpc('get_chat_previews', {
+          current_user_id: user.id
+        });
+
+      if (error) throw error;
+
+      if (data) {
+        setConversations(data);
+        const total = data.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
+        setUnreadCount(total);
+      }
+    } catch (error) {
+      console.error('Error loading conversations:', error);
     }
   };
 
@@ -121,63 +164,37 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const { error } = await supabase
-        .rpc('mark_conversation_as_read', {
-          p_other_user_id: userId,
-          p_user_id: user.id
-        });
+        .from('messages')
+        .update({ read: true })
+        .match({ sender_id: userId, receiver_id: user.id });
 
       if (error) throw error;
+
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.sender_id === userId && msg.receiver_id === user.id 
+            ? { ...msg, read: true } 
+            : msg
+        )
+      );
+
+      // Update unread count in conversations
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.user_id === userId
+            ? { ...conv, unread_count: 0 }
+            : conv
+        )
+      );
     } catch (error) {
       console.error('Error marking messages as read:', error);
     }
   };
 
-  // Load conversations for chat list
-  const loadConversations = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase.rpc('get_recent_conversations', { p_user_id: user.id });
-
-      if (error) {
-        console.error('Error loading conversations:', error);
-        return;
-      }
-
-      setConversations(data || []);
-      console.log(`Loaded ${data?.length || 0} conversations`);
-    } catch (err) {
-      console.error('Unexpected error loading conversations:', err);
-    }
-  };
-
-  // Load unread count from conversations table
-  const loadUnreadCount = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .rpc('get_recent_conversations', { p_user_id: user.id });
-
-      if (error) {
-        console.error('Error loading unread count:', error);
-        return;
-      }
-      
-      // Calculate total unread count from all conversations
-      const total = data?.reduce((sum: number, conv: Conversation) => sum + (conv.unread_count || 0), 0) || 0;
-      setUnreadCount(total);
-      console.log(`Total unread messages: ${total}`);
-    } catch (error) {
-      console.error('Unexpected error loading unread count:', error);
-    }
-  };
-
-  // Clear cache
   const clearCache = () => {
-    messageCache.current = {};
-    conversationsCache.current = null;
-    console.log('Cache cleared');
+    setMessages([]);
+    setConversations([]);
+    currentChatPartner.current = null;
   };
 
   const value = {
@@ -204,4 +221,4 @@ export function useChat() {
     throw new Error('useChat must be used within a ChatProvider');
   }
   return context;
-} 
+}
