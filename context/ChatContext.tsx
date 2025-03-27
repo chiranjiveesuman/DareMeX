@@ -53,8 +53,39 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const currentChatPartner = useRef<string | null>(null);
 
   // Load messages
-  const loadMessages = (newMessages: Message[]) => {
-    setMessages(newMessages);
+  const loadMessages = async (userId: string) => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          content,
+          created_at,
+          sender_id,
+          receiver_id,
+          read,
+          type,
+          status,
+          profiles!sender_id(username, avatar_url)
+        `)
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      if (data) {
+        const formattedMessages = data.map(msg => ({
+          ...msg,
+          sender_username: msg.profiles?.username,
+          sender_avatar_url: msg.profiles?.avatar_url
+        }));
+        setMessages(formattedMessages);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
   };
 
   // Send a new message

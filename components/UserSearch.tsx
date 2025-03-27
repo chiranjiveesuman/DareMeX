@@ -28,18 +28,30 @@ export function UserSearch() {
   }, [debouncedSearch]);
 
   const searchUsers = async () => {
+    if (!debouncedSearch || debouncedSearch.length < 2) {
+      setUsers([]);
+      return;
+    }
+
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('profiles')
         .select('id, username, avatar_url')
         .ilike('username', `%${debouncedSearch}%`)
-        .limit(10);
+        .limit(10)
+        .abortSignal(new AbortController().signal);
 
-      if (error) throw error;
-      setUsers(data || []);
+      if (error && error.code !== '20') { // Ignore aborted requests
+        throw error;
+      }
+      
+      if (data) {
+        setUsers(data);
+      }
     } catch (error) {
       console.error('Error searching users:', error);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
