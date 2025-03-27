@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
-import { Compass, TrendingUp, Sparkles, Flame } from 'lucide-react-native';
+import { Compass, TrendingUp, Sparkles, Flame, Users, Lock } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '@/context/ThemeContext';
 import SafeAreaWrapper from '@/components/SafeAreaWrapper';
+import { UserSearch } from '@/components/UserSearch';
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -46,6 +47,34 @@ const CATEGORIES: Category[] = [
     title: 'Explore',
     icon: Compass,
     color: '#22C55E',
+  },
+];
+
+interface DareCategory {
+  id: string;
+  title: string;
+  description: string;
+  icon: any;
+}
+
+const DARE_CATEGORIES: DareCategory[] = [
+  {
+    id: 'public',
+    title: 'Public Dares',
+    description: 'Join community challenges and show your daring side',
+    icon: Users,
+  },
+  {
+    id: 'private',
+    title: 'Private Dares',
+    description: 'Create exclusive challenges for your friends',
+    icon: Lock,
+  },
+  {
+    id: 'ai',
+    title: 'AI Dares',
+    description: 'Get personalized dare suggestions powered by AI',
+    icon: Sparkles,
   },
 ];
 
@@ -199,6 +228,41 @@ export default function DiscoverScreen() {
       fontSize: 12,
       color: '#FFFFFF',
     },
+    dareCategoryCard: {
+      backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#1F2937' : '#F3F4F6'),
+      borderRadius: 12,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: isDark ? '#374151' : '#E5E7EB',
+    },
+    dareCategoryContent: {
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+    },
+    iconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors?.primary?.[isDark ? 'dark' : 'light'] + '20',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    dareCategoryInfo: {
+      flex: 1,
+    },
+    dareCategoryTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 16,
+      color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
+      marginBottom: 4,
+    },
+    dareCategoryDescription: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 14,
+      color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#9CA3AF' : '#6B7280'),
+    },
   });
 
   return (
@@ -210,7 +274,32 @@ export default function DiscoverScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content}>
-          {/* Categories */}
+          {/* User Search */}
+          <UserSearch />
+
+          {/* Dare Categories */}
+          <View style={{ marginBottom: 24, marginTop: 24 }}>
+            <Text style={styles.sectionTitle}>Dare Categories</Text>
+            {DARE_CATEGORIES.map((category, index) => (
+              <AnimatedTouchable
+                key={category.id}
+                entering={FadeInDown.delay(100 + index * 100)}
+                style={styles.dareCategoryCard}
+              >
+                <View style={styles.dareCategoryContent}>
+                  <View style={styles.iconContainer}>
+                    <category.icon size={20} color={colors?.primary?.[isDark ? 'dark' : 'light']} />
+                  </View>
+                  <View style={styles.dareCategoryInfo}>
+                    <Text style={styles.dareCategoryTitle}>{category.title}</Text>
+                    <Text style={styles.dareCategoryDescription}>{category.description}</Text>
+                  </View>
+                </View>
+              </AnimatedTouchable>
+            ))}
+          </View>
+
+          {/* Browse by Category */}
           <Text style={styles.sectionTitle}>Browse by Category</Text>
           <View style={styles.categoriesContainer}>
             {CATEGORIES.map((category, index) => (

@@ -1,76 +1,95 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, FlatList } from 'react-native';
 import { Users, Lock, Sparkles, Bell } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
-import { UserSearch } from '@/components/UserSearch';
 import SafeAreaWrapper from '@/components/SafeAreaWrapper';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/supabase/config';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+dayjs.extend(relativeTime);
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-interface DareCategory {
+interface Dare {
   id: string;
   title: string;
-  description: string;
-  icon: any;
+  creator_id: string;
+  creator_username: string;
+  created_at: string;
 }
-
-const CATEGORIES: DareCategory[] = [
-  {
-    id: 'public',
-    title: 'Public Dares',
-    description: 'Join community challenges and show your daring side',
-    icon: Users,
-  },
-  {
-    id: 'private',
-    title: 'Private Dares',
-    description: 'Create exclusive challenges for your friends',
-    icon: Lock,
-  },
-  {
-    id: 'ai',
-    title: 'AI Dares',
-    description: 'Get personalized dare suggestions powered by AI',
-    icon: Sparkles,
-  },
-];
-
-interface RecentDare {
-  id: string;
-  title: string;
-  creator: string;
-  participants: number;
-}
-
-const RECENT_DARES: RecentDare[] = [
-  {
-    id: '1',
-    title: 'Ice Bucket Challenge',
-    creator: 'CosmicWolf365',
-    participants: 128,
-  },
-  {
-    id: '2',
-    title: 'Lip Sync Battle',
-    creator: 'MysticDragon789',
-    participants: 64,
-  },
-  {
-    id: '3',
-    title: 'Blindfolded Makeup',
-    creator: 'NobleEagle123',
-    participants: 96,
-  },
-];
 
 export default function HomeScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, theme } = useTheme();
   const router = useRouter();
+  const { user } = useAuth();
+  const [feedDares, setFeedDares] = useState<Dare[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchFeedDares();
+  }, [user]);
 
   const handleNotificationPress = () => {
+    console.log('Notification button pressed');
+    // Add your desired functionality here, e.g., navigate to a notifications screen
     router.push('/notifications');
+  };
+
+  const fetchFeedDares = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+  
+    try {
+      // Fetch friends' IDs
+      const { data: friendsData, error: friendsError } = await supabase
+        .from('friends')
+        .select('friend_id') // Ensure this column name matches your database schema
+        .eq('user_id', user.id);
+  
+      if (friendsError) {
+        console.error('Error fetching friends:', friendsError);
+        setLoading(false);
+        return;
+      }
+  
+      const friendIds = friendsData ? friendsData.map(friend => friend.friend_id) : [];
+      const userAndFriendIds = [user.id, ...friendIds];
+  
+      // Fetch dares from both the user and their friends
+      const { data: daresData, error: daresError } = await supabase
+        .from('dares')
+        .select('id, title, creator_id, profiles(username), created_at')
+        .in('creator_id', userAndFriendIds)
+        .order('created_at', { ascending: false });
+  
+      if (daresError) {
+        console.error('Error fetching feed dares:', daresError);
+        setLoading(false);
+        return;
+      }
+  
+      // Format the fetched dares
+      const formattedDares = daresData
+        ? daresData.map(dare => ({
+            id: dare.id,
+            title: dare.title,
+            creator_id: dare.creator_id,
+            creator_username: dare.profiles?.username || 'Unknown',
+            created_at: dare.created_at,
+          }))
+        : [];
+  
+      setFeedDares(formattedDares);
+    } catch (error) {
+      console.error('Error fetching feed:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const styles = StyleSheet.create({
@@ -119,86 +138,50 @@ export default function HomeScreen() {
       color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
       marginBottom: 16,
     },
-    categoryCard: {
-      backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#1F2937' : '#F3F4F6'),
-      borderRadius: 12,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: isDark ? '#374151' : '#E5E7EB',
-    },
-    categoryContent: {
-      padding: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 16,
-    },
-    iconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors?.primary?.[isDark ? 'dark' : 'light'] + '20',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    categoryInfo: {
-      flex: 1,
-    },
-    categoryTitle: {
-      fontFamily: 'SpaceGrotesk-Bold',
-      fontSize: 16,
-      color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
-      marginBottom: 4,
-    },
-    categoryDescription: {
-      fontFamily: 'Inter-Regular',
-      fontSize: 14,
-      color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#9CA3AF' : '#6B7280'),
-    },
-    dareCard: {
+    feedDareCard: {
       backgroundColor: colors?.background?.card?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#1F2937' : '#F3F4F6'),
       borderRadius: 12,
       marginBottom: 16,
       borderWidth: 1,
       borderColor: isDark ? '#374151' : '#E5E7EB',
-    },
-    dareContent: {
       padding: 16,
-      gap: 12,
     },
-    dareTitle: {
+    feedDareTitle: {
       fontFamily: 'SpaceGrotesk-Bold',
       fontSize: 18,
       color: colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827'),
+      marginBottom: 8,
     },
-    dareFooter: {
+    feedDareMeta: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
+      marginBottom: 4,
     },
-    participants: {
+    feedDareCreator: {
       fontFamily: 'Inter-Medium',
       fontSize: 14,
       color: colors?.primary?.[isDark ? 'dark' : 'light'],
     },
-    creator: {
+    feedDareTime: {
       fontFamily: 'Inter-Regular',
-      fontSize: 14,
+      fontSize: 12,
       color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#9CA3AF' : '#6B7280'),
     },
   });
-  
+
   return (
     <SafeAreaWrapper>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.notificationButton}
             onPress={handleNotificationPress}
             activeOpacity={0.6}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Bell 
-              size={24} 
+            <Bell
+              size={24}
               color={colors?.text?.primary?.[isDark ? 'dark' : 'light'] ?? (isDark ? '#F9FAFB' : '#111827')}
             />
           </TouchableOpacity>
@@ -206,67 +189,29 @@ export default function HomeScreen() {
           <Text style={styles.headerSubtitle}>Dare to be different</Text>
         </View>
 
-        <FlatList
-          data={[{ id: 'search' }, { id: 'categories' }, { id: 'recent' }]}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.content}
-          renderItem={({ item }) => {
-            switch (item.id) {
-              case 'search':
-                return <UserSearch />;
-              case 'categories':
-                return (
-                  <View style={{ marginBottom: 24 }}>
-                    <Text style={styles.sectionTitle}>Dare Categories</Text>
-                    {CATEGORIES.map((category, index) => (
-                      <AnimatedTouchable
-                        key={category.id}
-                        entering={FadeInDown.delay(100 + index * 100)}
-                        style={styles.categoryCard}
-                      >
-                        <View style={styles.categoryContent}>
-                          <View style={styles.iconContainer}>
-                            <category.icon size={20} color={colors?.primary?.[isDark ? 'dark' : 'light']} />
-                          </View>
-                          <View style={styles.categoryInfo}>
-                            <Text style={styles.categoryTitle}>{category.title}</Text>
-                            <Text style={styles.categoryDescription}>{category.description}</Text>
-                          </View>
-                        </View>
-                      </AnimatedTouchable>
-                    ))}
-                  </View>
-                );
-              case 'recent':
-                return (
-                  <View>
-                    <Text style={styles.sectionTitle}>Recent Activity</Text>
-                    {RECENT_DARES.map((dare, index) => (
-                      <AnimatedTouchable
-                        key={dare.id}
-                        entering={FadeInDown.delay(200 + index * 100)}
-                        style={styles.dareCard}
-                      >
-                        <View style={styles.dareContent}>
-                          <Text style={styles.dareTitle}>{dare.title}</Text>
-                          <View style={styles.dareFooter}>
-                            <Text style={styles.participants}>
-                              {dare.participants} participants
-                            </Text>
-                            <Text style={styles.creator}>
-                              by {dare.creator}
-                            </Text>
-                          </View>
-                        </View>
-                      </AnimatedTouchable>
-                    ))}
-                  </View>
-                );
-              default:
-                return null;
-            }
-          }}
-        />
+        <ScrollView contentContainerStyle={styles.content}>
+          <Text style={styles.sectionTitle}>Latest Dares</Text>
+          {loading ? (
+            <Text style={{ color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] }}>Loading feed...</Text>
+          ) : feedDares.length > 0 ? (
+            feedDares.map((dare) => (
+              <AnimatedTouchable
+                key={dare.id}
+                entering={FadeInDown.delay(100)}
+                style={styles.feedDareCard}
+                onPress={() => router.push(`/dare/${dare.id}`)}
+              >
+                <Text style={styles.feedDareTitle}>{dare.title}</Text>
+                <View style={styles.feedDareMeta}>
+                  <Text style={styles.feedDareCreator}>by {dare.creator_username}</Text>
+                  <Text style={styles.feedDareTime}>{dayjs(dare.created_at).fromNow()}</Text>
+                </View>
+              </AnimatedTouchable>
+            ))
+          ) : (
+            <Text style={{ color: colors?.text?.secondary?.[isDark ? 'dark' : 'light'] }}>No dares in your feed yet. Follow some friends!</Text>
+          )}
+        </ScrollView>
       </View>
     </SafeAreaWrapper>
   );
