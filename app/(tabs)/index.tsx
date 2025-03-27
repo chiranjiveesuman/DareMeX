@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, FlatList } from 'react-native';
 import { Users, Lock, Sparkles, Bell } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -70,7 +70,7 @@ export default function HomeScreen() {
   const router = useRouter();
 
   const handleNotificationPress = () => {
-    router.push('../../notifications');
+    router.push('/notifications');
   };
 
   const styles = StyleSheet.create({
@@ -206,56 +206,67 @@ export default function HomeScreen() {
           <Text style={styles.headerSubtitle}>Dare to be different</Text>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content}>
-          {/* Search Bar */}
-          <UserSearch />
-
-          {/* Categories */}
-          <View style={{ marginBottom: 24 }}>
-            <Text style={styles.sectionTitle}>Dare Categories</Text>
-            {CATEGORIES.map((category, index) => (
-              <AnimatedTouchable
-                key={category.id}
-                entering={FadeInDown.delay(100 + index * 100)}
-                style={styles.categoryCard}
-              >
-                <View style={styles.categoryContent}>
-                  <View style={styles.iconContainer}>
-                    <category.icon size={20} color={colors?.primary?.[isDark ? 'dark' : 'light']} />
+        <FlatList
+          data={[{ id: 'search' }, { id: 'categories' }, { id: 'recent' }]}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.content}
+          renderItem={({ item }) => {
+            switch (item.id) {
+              case 'search':
+                return <UserSearch />;
+              case 'categories':
+                return (
+                  <View style={{ marginBottom: 24 }}>
+                    <Text style={styles.sectionTitle}>Dare Categories</Text>
+                    {CATEGORIES.map((category, index) => (
+                      <AnimatedTouchable
+                        key={category.id}
+                        entering={FadeInDown.delay(100 + index * 100)}
+                        style={styles.categoryCard}
+                      >
+                        <View style={styles.categoryContent}>
+                          <View style={styles.iconContainer}>
+                            <category.icon size={20} color={colors?.primary?.[isDark ? 'dark' : 'light']} />
+                          </View>
+                          <View style={styles.categoryInfo}>
+                            <Text style={styles.categoryTitle}>{category.title}</Text>
+                            <Text style={styles.categoryDescription}>{category.description}</Text>
+                          </View>
+                        </View>
+                      </AnimatedTouchable>
+                    ))}
                   </View>
-                  <View style={styles.categoryInfo}>
-                    <Text style={styles.categoryTitle}>{category.title}</Text>
-                    <Text style={styles.categoryDescription}>{category.description}</Text>
+                );
+              case 'recent':
+                return (
+                  <View>
+                    <Text style={styles.sectionTitle}>Recent Activity</Text>
+                    {RECENT_DARES.map((dare, index) => (
+                      <AnimatedTouchable
+                        key={dare.id}
+                        entering={FadeInDown.delay(200 + index * 100)}
+                        style={styles.dareCard}
+                      >
+                        <View style={styles.dareContent}>
+                          <Text style={styles.dareTitle}>{dare.title}</Text>
+                          <View style={styles.dareFooter}>
+                            <Text style={styles.participants}>
+                              {dare.participants} participants
+                            </Text>
+                            <Text style={styles.creator}>
+                              by {dare.creator}
+                            </Text>
+                          </View>
+                        </View>
+                      </AnimatedTouchable>
+                    ))}
                   </View>
-                </View>
-              </AnimatedTouchable>
-            ))}
-          </View>
-
-          {/* Recent Activity */}
-          <View>
-            <Text style={styles.sectionTitle}>Recent Activity</Text>
-            {RECENT_DARES.map((dare, index) => (
-              <AnimatedTouchable
-                key={dare.id}
-                entering={FadeInDown.delay(200 + index * 100)}
-                style={styles.dareCard}
-              >
-                <View style={styles.dareContent}>
-                  <Text style={styles.dareTitle}>{dare.title}</Text>
-                  <View style={styles.dareFooter}>
-                    <Text style={styles.participants}>
-                      {dare.participants} participants
-                    </Text>
-                    <Text style={styles.creator}>
-                      by {dare.creator}
-                    </Text>
-                  </View>
-                </View>
-              </AnimatedTouchable>
-            ))}
-          </View>
-        </ScrollView>
+                );
+              default:
+                return null;
+            }
+          }}
+        />
       </View>
     </SafeAreaWrapper>
   );

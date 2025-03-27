@@ -369,40 +369,36 @@ export default memo(function NotificationsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors, isDark } = useTheme();
-  const [friendRequests, setFriendRequests] = useState<FriendRequestResponse[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreData, setHasMoreData] = useState(true);
   const [page, setPage] = useState(0);
-  const [activeTab, setActiveTab] = useState<TabType>(TABS.NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequestResponse[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
-  
-  // Use refs to avoid stale closures in subscription callbacks
-  const friendRequestsRef = useRef(friendRequests);
+  const [activeTab, setActiveTab] = useState<TabType>(TABS.NOTIFICATIONS);
+
   const notificationsRef = useRef(notifications);
   const pageRef = useRef(page);
-  
+
   // Update refs when state changes
   useEffect(() => {
-    friendRequestsRef.current = friendRequests;
     notificationsRef.current = notifications;
     pageRef.current = page;
   }, [friendRequests, notifications, page]);
 
+  // Initial data load
   useEffect(() => {
-    if (!user) return;
-    
-    // Reset state
-    setPage(0);
-    setHasMoreData(true);
+    if (!user) {
+      router.replace('/auth');
+      return;
+    }
     loadData(true);
-    
     const subscriptions = subscribeToUpdates();
     return () => {
-      subscriptions.forEach(subscription => subscription?.unsubscribe());
+      subscriptions.forEach(subscription => subscription.unsubscribe());
     };
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -413,7 +409,7 @@ export default memo(function NotificationsScreen() {
           .from('messages')
           .select(`
             *,
-            sender:profiles!fk_sender_profile (
+            sender:profiles (
               id,
               username,
               avatar_url
@@ -519,12 +515,12 @@ export default memo(function NotificationsScreen() {
       
       const currentPage = reset ? 0 : page;
       
-      // Load friend requests with explicit foreign key
+      // Load friend requests with explicit join
       const { data: friendRequests, error: friendError } = await supabase
         .from('friends')
         .select(`
           *,
-          sender:profiles!fk_sender_profile (
+          sender:profiles (
             id,
             username,
             avatar_url
@@ -536,12 +532,12 @@ export default memo(function NotificationsScreen() {
 
       if (friendError) throw friendError;
 
-      // Load notifications with explicit foreign key
+      // Load notifications with explicit join
       const { data: notifications, error: notificationError } = await supabase
         .from('notifications')
         .select(`
           *,
-          sender:profiles!fk_sender_profile (
+          sender:profiles (
             id,
             username,
             avatar_url
@@ -768,21 +764,15 @@ export default memo(function NotificationsScreen() {
     const date = new Date(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor(diff / (1000 * 60));
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
 
-    if (minutes < 60) {
-      return `${minutes}m ago`;
-    } else if (hours < 24) {
-      return `${hours}h ago`;
-    } else if (days === 1) {
-      return 'Yesterday';
-    } else if (days < 7) {
-      return `${days}d ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
   }, []);
 
   // Memoized style objects
@@ -956,7 +946,7 @@ export default memo(function NotificationsScreen() {
         if (isMessage) {
           router.push(`/chat/${notification.sender.id}`);
         } else if (notification.dare_id) {
-          router.push(`/dare/${notification.dare_id}` as any);
+          router.push(`/dare/${notification.dare_id}`);
         }
       }
     };
@@ -975,7 +965,7 @@ export default memo(function NotificationsScreen() {
       }
     };
 
-  return (
+    return (
       <NotificationItem
         item={item}
         onPress={handlePress}

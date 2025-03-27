@@ -1,14 +1,18 @@
 import { Stack } from 'expo-router';
-import { ChatProvider } from '@/context/ChatContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function ChatLayout() {
   return (
-    <ChatProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-        }}
-      />
-    </ChatProvider>
+    <ErrorBoundary>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen 
+          name="[id]/index"
+          options={{
+            presentation: 'push'
+          }}
+        />
+      </Stack>
+    </ErrorBoundary>
   );
 } 

@@ -22,6 +22,7 @@ type AuthContextType = {
   signUp: (email: string, password: string, username?: string) => Promise<void>;
   signOut: () => Promise<void>;
   searchUsers: (query: string) => Promise<Array<{ id: string; username: string; avatar_url?: string }>>;
+  supabase: typeof supabase;
 };
 
 // Create the auth context with default values
@@ -33,11 +34,18 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => {},
   signOut: async () => {},
   searchUsers: async () => [],
+  supabase: supabase,
 });
 
 // Custom hook to use the auth context
 export const useAuth = () => {
   return useContext(AuthContext);
+};
+
+// Custom hook to use Supabase instance
+export const useSupabase = () => {
+  const { supabase } = useAuth();
+  return supabase;
 };
 
 // Provider component to wrap our app and make auth object available
@@ -363,6 +371,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     signOut,
     searchUsers,
+    supabase,
   };
 
   return (

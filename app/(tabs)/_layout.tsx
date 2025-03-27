@@ -100,20 +100,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="create"
+        options={{
+          title: 'Create',
+          tabBarIcon: ({ color }) => (
+            <Plus size={TAB_ICON_SIZE} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="leaderboard"
         options={{
           title: 'Top',
           tabBarIcon: ({ color }) => (
             <Award size={TAB_ICON_SIZE} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="create/index"
-        options={{
-          title: 'Create',
-          tabBarIcon: ({ color }) => (
-            <Plus size={TAB_ICON_SIZE} color={color} />
           ),
         }}
       />

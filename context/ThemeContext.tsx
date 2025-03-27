@@ -6,24 +6,16 @@ type Theme = 'light' | 'dark' | 'system';
 
 interface Colors {
   primary: string;
-  background: {
-    dark: string;
-    light: string;
-    card: {
-      dark: string;
-      light: string;
-    };
-  };
-  text: {
-    primary: {
-      dark: string;
-      light: string;
-    };
-    secondary: {
-      dark: string;
-      light: string;
-    };
-  };
+  secondary: string;
+  background: string;
+  card: string;
+  border: string;
+  text: string;
+  textSecondary: string;
+  success: string;
+  error: string;
+  warning: string;
+  info: string;
 }
 
 interface ThemeContextType {
@@ -33,33 +25,39 @@ interface ThemeContextType {
   colors: Colors;
 }
 
-const defaultColors: Colors = {
+const lightColors: Colors = {
   primary: '#FF4D6A',
-  background: {
-    dark: '#000000',
-    light: '#FFFFFF',
-    card: {
-      dark: '#0A0A0A',
-      light: '#F3F4F6'
-    }
-  },
-  text: {
-    primary: {
-      dark: '#FFFFFF',
-      light: '#111827'
-    },
-    secondary: {
-      dark: '#888888',
-      light: '#6B7280'
-    }
-  }
+  secondary: '#6B7280',
+  background: '#FFFFFF',
+  card: '#F3F4F6',
+  border: '#E5E7EB',
+  text: '#111827',
+  textSecondary: '#6B7280',
+  success: '#34C759',
+  error: '#FF3B30',
+  warning: '#FF9500',
+  info: '#007AFF'
+};
+
+const darkColors: Colors = {
+  primary: '#FF4D6A',
+  secondary: '#888888',
+  background: '#000000',
+  card: '#0A0A0A',
+  border: '#374151',
+  text: '#FFFFFF',
+  textSecondary: '#888888',
+  success: '#32D74B',
+  error: '#FF453A',
+  warning: '#FFD60A',
+  info: '#0A84FF'
 };
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: 'system',
   setTheme: () => {},
   isDark: false,
-  colors: defaultColors
+  colors: lightColors
 });
 
 export const useTheme = () => useContext(ThemeContext);
@@ -67,10 +65,16 @@ export const useTheme = () => useContext(ThemeContext);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useColorScheme();
   const [theme, setThemeState] = useState<Theme>('system');
+  const [colors, setColors] = useState<Colors>(lightColors);
 
   useEffect(() => {
     loadTheme();
   }, []);
+
+  useEffect(() => {
+    const isDark = theme === 'system' ? systemColorScheme === 'dark' : theme === 'dark';
+    setColors(isDark ? darkColors : lightColors);
+  }, [theme, systemColorScheme]);
 
   const loadTheme = async () => {
     try {
@@ -95,7 +99,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const isDark = theme === 'system' ? systemColorScheme === 'dark' : theme === 'dark';
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, isDark, colors: defaultColors }}>
+    <ThemeContext.Provider value={{ theme, setTheme, isDark, colors }}>
       {children}
     </ThemeContext.Provider>
   );

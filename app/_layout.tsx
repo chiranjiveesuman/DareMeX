@@ -45,15 +45,24 @@ export default function RootLayout() {
       <ThemeProvider>
         <AuthProvider>
           <ChatProvider>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: 'transparent' },
-              }}
-            >
+            <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="(auth)" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="+not-found" />
+              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+              <Stack.Screen 
+                name="notifications" 
+                options={{ 
+                  headerShown: false,
+                  presentation: 'modal'
+                }} 
+              />
+              <Stack.Screen 
+                name="chat/[id]" 
+                options={{ headerShown: false }} 
+              />
+              <Stack.Screen 
+                name="profile/[id]" 
+                options={{ headerShown: false }} 
+              />
             </Stack>
             <StatusBar style="light" />
           </ChatProvider>
