@@ -1,16 +1,117 @@
-import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable, FlatList, Dimensions } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Settings, LogOut, MoreVertical } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import SafeAreaWrapper from '@/components/SafeAreaWrapper';
+import { supabase } from '@/supabase/config';
+
+interface Dare {
+  id: string;
+  title: string;
+  description: string;
+  media_url: string | null;
+  difficulty: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  created_at: string;
+}
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { colors, isDark } = useTheme();
   const router = useRouter();
   const [menuVisible, setMenuVisible] = useState(false);
+  const [dares, setDares] = useState<Dare[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUserDares();
+  }, [user]);
+
+  const fetchUserDares = async () => {
+    try {
+      if (!user?.id) return;
+
+      const { data, error } = await supabase
+        .from('dares')
+        .select('*')
+        .eq('creator_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setDares(data || []);
+    } catch (error) {
+      console.error('Error fetching dares:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderDareItem = ({ item }: { item: Dare }) => (
+    <TouchableOpacity
+      style={[
+        styles.dareItem,
+        item.media_url ? styles.dareCard : styles.dareTextOnly,
+        { backgroundColor: colors.card }
+      ]}
+      onPress={() => router.push({
+        pathname: '/dare/[id]',
+        params: { id: item.id }
+      })}
+    >
+      {item.media_url ? (
+        <>
+          <Image
+            source={{ uri: item.media_url }}
+            style={styles.dareImage}
+            resizeMode="cover"
+          />
+          <View style={styles.dareInfo}>
+            <Text style={[styles.dareTitle, { color: colors.text }]} numberOfLines={1}>
+              {item.title}
+            </Text>
+            <View style={styles.dareStats}>
+              <Text style={[styles.dareStatText, { color: colors.textSecondary }]}>
+                {item.likes} likes • {item.comments} comments
+              </Text>
+              <View style={[styles.difficultyBadge, { backgroundColor: colors.primary + '20' }]}>
+                <Text style={[styles.difficultyText, { color: colors.primary }]}>
+                  {item.difficulty}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </>
+      ) : (
+        <View style={styles.dareTextContent}>
+          <View style={styles.dareHeader}>
+            <Text style={[styles.dareTitle, { color: colors.text }]} numberOfLines={2}>
+              {item.title}
+            </Text>
+            <View style={[styles.difficultyBadge, { backgroundColor: colors.primary + '20' }]}>
+              <Text style={[styles.difficultyText, { color: colors.primary }]}>
+                {item.difficulty}
+              </Text>
+            </View>
+          </View>
+          <Text 
+            style={[styles.dareDescription, { color: colors.textSecondary }]}
+            numberOfLines={2}
+          >
+            {item.description}
+          </Text>
+          <View style={styles.dareStats}>
+            <Text style={[styles.dareStatText, { color: colors.textSecondary }]}>
+              {item.likes} likes • {item.comments} comments
+            </Text>
+          </View>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
 
   const styles = StyleSheet.create({
     container: {
@@ -94,6 +195,76 @@ export default function ProfileScreen() {
     dangerText: {
       color: isDark ? '#FCA5A5' : '#991B1B',
     },
+    // Dare Card Styles
+    dareItem: {
+      borderRadius: 12,
+      marginBottom: 16,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dareCard: {
+      // No additional styles needed, uses dareItem base styles
+    },
+    dareTextOnly: {
+      padding: 16,
+    },
+    dareTextContent: {
+      gap: 8,
+    },
+    dareHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    dareDescription: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    dareImage: {
+      width: '100%',
+      height: 200,
+      backgroundColor: colors.border,
+    },
+    dareInfo: {
+      padding: 12,
+    },
+    dareTitle: {
+      fontFamily: 'SpaceGrotesk-Bold',
+      fontSize: 16,
+      marginBottom: 8,
+    },
+    dareStats: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    dareStatText: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 12,
+    },
+    difficultyBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+    },
+    difficultyText: {
+      fontFamily: 'Inter-Medium',
+      fontSize: 12,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    },
+    emptyText: {
+      fontFamily: 'Inter-Regular',
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
   });
 
   const handleSignOut = async () => {
@@ -130,6 +301,24 @@ export default function ProfileScreen() {
           </Text>
           <Text style={styles.email}>{user?.email}</Text>
         </View>
+
+        {loading ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Loading dares...</Text>
+          </View>
+        ) : dares.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No dares created yet</Text>
+          </View>
+        ) : (
+          <View>
+            {dares.map((dare) => (
+              <View key={dare.id}>
+                {renderDareItem({ item: dare })}
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       <Modal
