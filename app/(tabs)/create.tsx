@@ -51,26 +51,46 @@ export default function CreateScreen() {
 
   const uploadMedia = async (uri: string) => {
     try {
+      console.log('Starting media upload for URI:', uri);
+      
       const response = await fetch(uri);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
       const blob = await response.blob();
-      const fileExt = uri.split('.').pop();
+      console.log('Blob created successfully:', blob.type, blob.size);
+      
+      const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
       const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
-      const filePath = `dare-media/${fileName}`;
+      const filePath = fileName;
 
+      console.log('Uploading to path:', filePath);
+      
       const { error: uploadError } = await supabase.storage
-        .from('dares')
-        .upload(filePath, blob);
+        .from('dare-media')
+        .upload(filePath, blob, {
+          contentType: `image/${fileExt}`,
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error details:', uploadError);
+        throw new Error(uploadError.message || 'Failed to upload image');
+      }
 
       const { data: { publicUrl } } = supabase.storage
-        .from('dares')
+        .from('dare-media')
         .getPublicUrl(filePath);
 
+      console.log('Upload successful, public URL:', publicUrl);
       return publicUrl;
     } catch (error) {
-      console.error('Error uploading media:', error);
-      throw error;
+      console.error('Detailed upload error:', error);
+      if (error instanceof Error) {
+        throw new Error(`Upload failed: ${error.message}`);
+      }
+      throw new Error('Failed to upload image');
     }
   };
 
